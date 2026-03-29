@@ -1,10 +1,31 @@
 "use client";
 
-import { useAuthenticator, Authenticator } from "@aws-amplify/ui-react";
+import { useAuthenticator } from "@aws-amplify/ui-react";
+import { useState } from "react";
 import styles from "./dashboard.module.css";
+import AuthModal from "../components/AuthModal";
 
-function DashboardContent() {
-  const { user, signOut } = useAuthenticator((context) => [context.user]);
+export default function DashboardPage() {
+  const { user, authStatus, signOut } = useAuthenticator();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  if (authStatus !== "authenticated") {
+    return (
+      <div className={styles.page}>
+        <div className={styles.emptyState}>
+          <h2>Sign in to view your dashboard</h2>
+          <p>Track your forecasts, accuracy score, and active predictions.</p>
+          <button
+            className={styles.signOutBtn}
+            onClick={() => setShowAuthModal(true)}
+          >
+            Sign In
+          </button>
+          {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -41,13 +62,5 @@ function DashboardContent() {
         </div>
       </section>
     </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Authenticator>
-      <DashboardContent />
-    </Authenticator>
   );
 }
