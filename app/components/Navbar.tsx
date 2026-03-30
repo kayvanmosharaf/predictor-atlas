@@ -20,51 +20,53 @@ export default function Navbar() {
   const { isAdmin } = useAdmin();
 
   return (
-    <nav className={styles.navbar}>
-      <Link href="/" className={styles.logo}>
-        PredictorAtlas
-      </Link>
+    <>
+      <nav className={styles.navbar}>
+        <Link href="/" className={styles.logo}>
+          PredictorAtlas
+        </Link>
 
-      <div className={styles.links}>
-        {links.map(({ href, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className={pathname === href ? styles.active : ""}
-          >
-            {label}
-          </Link>
-        ))}
-        {authStatus === "authenticated" && (
-          <Link
-            href="/dashboard"
-            className={pathname === "/dashboard" ? styles.active : ""}
-          >
-            Dashboard
-          </Link>
-        )}
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className={`${styles.adminLink} ${pathname.startsWith("/admin") ? styles.active : ""}`}
-          >
-            Admin
-          </Link>
-        )}
-        {authStatus === "authenticated" ? (
-          <button onClick={signOut} className={styles.signOutBtn}>
-            Sign Out
-          </button>
-        ) : (
-          <button
-            className={styles.signInBtn}
-            onClick={() => setShowAuthModal(true)}
-          >
-            Sign In
-          </button>
-        )}
-      </div>
+        <div className={styles.links}>
+          {links.map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className={pathname === href ? styles.active : ""}
+            >
+              {label}
+            </Link>
+          ))}
+          {authStatus === "authenticated" && (
+            <Link
+              href="/dashboard"
+              className={pathname === "/dashboard" ? styles.active : ""}
+            >
+              Dashboard
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className={`${styles.adminLink} ${pathname.startsWith("/admin") ? styles.active : ""}`}
+            >
+              Admin
+            </Link>
+          )}
+          {authStatus === "authenticated" ? (
+            <button onClick={signOut} className={styles.signOutBtn}>
+              Sign Out
+            </button>
+          ) : (
+            <button
+              className={styles.signInBtn}
+              onClick={() => setShowAuthModal(true)}
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+      </nav>
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
-    </nav>
+    </>
   );
 }

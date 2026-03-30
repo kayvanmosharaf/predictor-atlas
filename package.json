@@ -6,7 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "jest --findRelatedTests --passWithNoTests"
+    ]
   },
   "dependencies": {
     "@aws-amplify/adapter-nextjs": "^1.7.2",
@@ -19,6 +30,11 @@
   "devDependencies": {
     "@aws-amplify/backend": "^1.22.0",
     "@aws-amplify/backend-cli": "^1.8.2",
+    "@playwright/test": "^1.58.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
@@ -28,6 +44,12 @@
     "esbuild": "^0.27.4",
     "eslint": "^8",
     "eslint-config-next": "14.0.4",
+    "husky": "^9.1.7",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
+    "lint-staged": "^16.4.0",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }

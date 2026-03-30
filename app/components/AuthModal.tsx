@@ -1,7 +1,7 @@
 "use client";
 
 import { Authenticator, ThemeProvider, useAuthenticator } from "@aws-amplify/ui-react";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import styles from "./AuthModal.module.css";
 
 const atlasTheme = {
@@ -44,19 +44,53 @@ function AuthHeader() {
   );
 }
 
+function SignInFooter() {
+  const { toSignUp } = useAuthenticator();
+  return (
+    <div className={styles.signUpFooter}>
+      <span>Don&apos;t have an account?</span>
+      <button className={styles.signUpLink} onClick={toSignUp} type="button">
+        Create Account
+      </button>
+    </div>
+  );
+}
+
+function SignUpFooter() {
+  const { toSignIn } = useAuthenticator();
+  return (
+    <div className={styles.signUpFooter}>
+      <span>Already have an account?</span>
+      <button className={styles.signUpLink} onClick={toSignIn} type="button">
+        Sign In
+      </button>
+    </div>
+  );
+}
+
 export default function AuthModal({ onClose }: { onClose: () => void }) {
   const { authStatus } = useAuthenticator();
 
+  const handleClose = useCallback(() => onClose(), [onClose]);
+
   useEffect(() => {
-    if (authStatus === "authenticated") onClose();
-  }, [authStatus, onClose]);
+    if (authStatus === "authenticated") handleClose();
+  }, [authStatus, handleClose]);
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={styles.overlay} onClick={handleClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <button className={styles.closeBtn} onClick={onClose} aria-label="Close">✕</button>
+        <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">✕</button>
         <ThemeProvider theme={atlasTheme}>
-          <Authenticator components={{ Header: AuthHeader }} />
+          <Authenticator
+            initialState="signIn"
+            signUpAttributes={["email"]}
+            components={{
+              Header: AuthHeader,
+              SignIn: { Footer: SignInFooter },
+              SignUp: { Footer: SignUpFooter },
+            }}
+          />
         </ThemeProvider>
       </div>
     </div>
