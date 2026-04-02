@@ -56,6 +56,17 @@
   color: #e2e8f0 !important;
 }
 
+/* Show-password eye icon */
+.modal :global(.amplify-field__show-password) {
+  background: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #94a3b8 !important;
+}
+
+.modal :global(.amplify-field__show-password:hover) {
+  color: #e2e8f0 !important;
+}
+
 .modal :global(.amplify-input:focus),
 .modal :global(.amplify-select:focus) {
   border-color: #3b82f6 !important;

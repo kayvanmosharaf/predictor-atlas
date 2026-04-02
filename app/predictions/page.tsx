@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { useAuthenticator } from "@aws-amplify/ui-react";
+import AuthModal from "../components/AuthModal";
 import styles from "./predictions.module.css";
 
 const samplePredictions = [
@@ -98,6 +101,17 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function PredictionsPage() {
+  const { authStatus } = useAuthenticator();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const handleMakeForecast = () => {
+    if (authStatus !== "authenticated") {
+      setShowAuthModal(true);
+      return;
+    }
+    // TODO: handle forecast submission for authenticated users
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -153,11 +167,15 @@ export default function PredictionsPage() {
             </div>
             <div className={styles.cardFooter}>
               <span>Resolves: {prediction.resolutionDate}</span>
-              <button className={styles.forecastBtn}>Make Forecast</button>
+              <button className={styles.forecastBtn} onClick={handleMakeForecast}>Make Forecast</button>
             </div>
           </div>
         ))}
       </div>
+
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
     </div>
   );
 }
