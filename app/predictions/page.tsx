@@ -1,95 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
+import { generateClient } from "aws-amplify/data";
+import type { Schema } from "@/amplify/data/resource";
 import AuthModal from "../components/AuthModal";
 import styles from "./predictions.module.css";
 
-const samplePredictions = [
-  {
-    id: "1",
-    title: "2026 US Midterm Elections",
-    category: "POLITICS",
-    status: "OPEN",
-    description:
-      "Which party will control the House after the 2026 midterms? Game theory analysis of campaign strategies, voter turnout models, and redistricting effects.",
-    outcomes: [
-      { name: "Democrats retain", probability: 45 },
-      { name: "Republicans gain", probability: 55 },
-    ],
-    resolutionDate: "2026-11-03",
-  },
-  {
-    id: "2",
-    title: "Global Recession Probability 2026-2027",
-    category: "ECONOMICS",
-    status: "OPEN",
-    description:
-      "Will major economies enter recession by end of 2027? Strategic analysis of central bank policies, trade dynamics, and fiscal responses.",
-    outcomes: [
-      { name: "Recession occurs", probability: 30 },
-      { name: "Soft landing", probability: 45 },
-      { name: "Continued growth", probability: 25 },
-    ],
-    resolutionDate: "2027-12-31",
-  },
-  {
-    id: "3",
-    title: "NBA Finals 2026 Champion",
-    category: "SPORTS",
-    status: "OPEN",
-    description:
-      "Predicting the 2026 NBA champion using game theory models of playoff matchups, coaching strategies, and player interactions.",
-    outcomes: [
-      { name: "Eastern Conference team", probability: 40 },
-      { name: "Western Conference team", probability: 60 },
-    ],
-    resolutionDate: "2026-06-30",
-  },
-  {
-    id: "4",
-    title: "EU-China Trade Negotiations Outcome",
-    category: "GEOPOLITICS",
-    status: "OPEN",
-    description:
-      "How will EU-China trade negotiations resolve? Nash equilibrium analysis of tariff strategies, market access demands, and diplomatic leverage.",
-    outcomes: [
-      { name: "Mutual concessions", probability: 35 },
-      { name: "Trade escalation", probability: 40 },
-      { name: "Status quo", probability: 25 },
-    ],
-    resolutionDate: "2026-12-31",
-  },
-  {
-    id: "5",
-    title: "US-Iran Military Conflict Probability",
-    category: "GEOPOLITICS",
-    status: "OPEN",
-    description:
-      "What is the likelihood of a direct US-Iran military confrontation by 2027? Game theory analysis of escalation dynamics, nuclear negotiations, proxy conflicts, and strategic deterrence models.",
-    outcomes: [
-      { name: "Direct conflict", probability: 15 },
-      { name: "Proxy escalation only", probability: 35 },
-      { name: "Diplomatic resolution", probability: 20 },
-      { name: "Status quo tensions", probability: 30 },
-    ],
-    resolutionDate: "2027-12-31",
-  },
-  {
-    id: "6",
-    title: "AI Regulation Framework — US vs EU",
-    category: "TECHNOLOGY",
-    status: "OPEN",
-    description:
-      "Will the US adopt EU-style AI regulation or diverge? Strategic analysis of industry lobbying, public pressure, and international competition dynamics.",
-    outcomes: [
-      { name: "US converges with EU", probability: 20 },
-      { name: "US diverges", probability: 45 },
-      { name: "Partial alignment", probability: 35 },
-    ],
-    resolutionDate: "2027-06-30",
-  },
-];
+const client = generateClient<Schema>();
+
+type Prediction = Schema["Prediction"]["type"];
+type Outcome = Schema["Outcome"]["type"];
+type Forecast = Schema["Forecast"]["type"];
+
+interface PredictionWithOutcomes extends Prediction {
+  outcomes: Outcome[];
+}
 
 const categoryColors: Record<string, string> = {
   POLITICS: "#ef4444",
@@ -103,14 +29,143 @@ const categoryColors: Record<string, string> = {
 export default function PredictionsPage() {
   const { authStatus } = useAuthenticator();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [activeForecast, setActiveForecast] = useState<string | null>(null);
+  const [forecasts, setForecasts] = useState<Record<string, Record<string, number>>>({});
+  const [predictions, setPredictions] = useState<PredictionWithOutcomes[]>([]);
+  const [userForecasts, setUserForecasts] = useState<Forecast[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleMakeForecast = () => {
+  // Fetch predictions and their outcomes
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const { data: predictionData } = await client.models.Prediction.list();
+        const { data: outcomeData } = await client.models.Outcome.list();
+
+        const grouped = predictionData.map((p) => ({
+          ...p,
+          outcomes: outcomeData.filter((o) => o.predictionId === p.id),
+        }));
+
+        setPredictions(grouped);
+      } catch (err) {
+        console.error("Failed to fetch predictions:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  // Fetch user's existing forecasts when authenticated
+  const loadUserForecasts = useCallback(async () => {
+    if (authStatus !== "authenticated") {
+      setUserForecasts([]);
+      return;
+    }
+    try {
+      const { data } = await client.models.Forecast.list({
+        authMode: "userPool",
+      });
+      setUserForecasts(data);
+
+      // Pre-fill slider values from existing forecasts
+      const existing: Record<string, Record<string, number>> = {};
+      for (const f of data) {
+        const outcome = predictions
+          .flatMap((p) => p.outcomes)
+          .find((o) => o.id === f.outcomeId);
+        if (outcome) {
+          if (!existing[f.predictionId]) existing[f.predictionId] = {};
+          existing[f.predictionId][outcome.label] = f.confidence;
+        }
+      }
+      setForecasts((prev) => ({ ...prev, ...existing }));
+    } catch (err) {
+      console.error("Failed to fetch user forecasts:", err);
+    }
+  }, [authStatus, predictions]);
+
+  useEffect(() => {
+    if (predictions.length > 0) {
+      loadUserForecasts();
+    }
+  }, [predictions, loadUserForecasts]);
+
+  const handleMakeForecast = (predictionId: string) => {
     if (authStatus !== "authenticated") {
       setShowAuthModal(true);
       return;
     }
-    // TODO: handle forecast submission for authenticated users
+    setActiveForecast(activeForecast === predictionId ? null : predictionId);
   };
+
+  const handleSliderChange = (predictionId: string, outcomeLabel: string, value: number) => {
+    setForecasts((prev) => ({
+      ...prev,
+      [predictionId]: {
+        ...prev[predictionId],
+        [outcomeLabel]: value,
+      },
+    }));
+  };
+
+  const getForecastValue = (predictionId: string, outcomeLabel: string, defaultProb: number) => {
+    return forecasts[predictionId]?.[outcomeLabel] ?? defaultProb;
+  };
+
+  const handleSubmitForecast = async (predictionId: string) => {
+    const prediction = predictions.find((p) => p.id === predictionId);
+    if (!prediction) return;
+
+    setSaving(true);
+    try {
+      for (const outcome of prediction.outcomes) {
+        const confidence = getForecastValue(predictionId, outcome.label, outcome.probability ?? 0);
+
+        // Check if user already has a forecast for this outcome
+        const existingForecast = userForecasts.find(
+          (f) => f.predictionId === predictionId && f.outcomeId === outcome.id
+        );
+
+        if (existingForecast) {
+          await client.models.Forecast.update(
+            { id: existingForecast.id, confidence },
+            { authMode: "userPool" }
+          );
+        } else {
+          await client.models.Forecast.create(
+            {
+              predictionId,
+              outcomeId: outcome.id,
+              confidence,
+            },
+            { authMode: "userPool" }
+          );
+        }
+      }
+
+      // Reload user forecasts
+      await loadUserForecasts();
+      setActiveForecast(null);
+    } catch (err) {
+      console.error("Failed to save forecast:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <h1>Active Predictions</h1>
+          <p>Loading predictions...</p>
+        </header>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -130,14 +185,17 @@ export default function PredictionsPage() {
       </div>
 
       <div className={styles.grid}>
-        {samplePredictions.map((prediction) => (
+        {predictions.length === 0 && (
+          <p style={{ color: "#64748b" }}>No predictions yet. Seed the database to get started.</p>
+        )}
+        {predictions.map((prediction) => (
           <div key={prediction.id} className={styles.card}>
             <div className={styles.cardHeader}>
               <span
                 className={styles.badge}
                 style={{
-                  backgroundColor: `${categoryColors[prediction.category]}20`,
-                  color: categoryColors[prediction.category],
+                  backgroundColor: `${categoryColors[prediction.category ?? "OTHER"]}20`,
+                  color: categoryColors[prediction.category ?? "OTHER"],
                 }}
               >
                 {prediction.category}
@@ -148,26 +206,74 @@ export default function PredictionsPage() {
             <p className={styles.cardDesc}>{prediction.description}</p>
             <div className={styles.outcomes}>
               {prediction.outcomes.map((outcome) => (
-                <div key={outcome.name} className={styles.outcome}>
+                <div key={outcome.id} className={styles.outcome}>
                   <div className={styles.outcomeHeader}>
-                    <span>{outcome.name}</span>
-                    <span className={styles.probability}>{outcome.probability}%</span>
+                    <span>{outcome.label}</span>
+                    <span className={styles.probability}>{outcome.probability ?? 0}%</span>
                   </div>
                   <div className={styles.progressBar}>
                     <div
                       className={styles.progressFill}
                       style={{
-                        width: `${outcome.probability}%`,
-                        backgroundColor: categoryColors[prediction.category],
+                        width: `${outcome.probability ?? 0}%`,
+                        backgroundColor: categoryColors[prediction.category ?? "OTHER"],
                       }}
                     />
                   </div>
+                  {activeForecast === prediction.id && (
+                    <div className={styles.forecastSlider}>
+                      <div className={styles.forecastSliderHeader}>
+                        <span className={styles.forecastLabel}>Your forecast</span>
+                        <span className={styles.forecastValue}>
+                          {getForecastValue(prediction.id, outcome.label, outcome.probability ?? 0)}%
+                        </span>
+                      </div>
+                      <div className={styles.sliderTrack}>
+                        <div
+                          className={styles.sliderFill}
+                          style={{
+                            width: `${getForecastValue(prediction.id, outcome.label, outcome.probability ?? 0)}%`,
+                          }}
+                        />
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={getForecastValue(prediction.id, outcome.label, outcome.probability ?? 0)}
+                          onChange={(e) =>
+                            handleSliderChange(prediction.id, outcome.label, Number(e.target.value))
+                          }
+                          className={styles.slider}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
             <div className={styles.cardFooter}>
               <span>Resolves: {prediction.resolutionDate}</span>
-              <button className={styles.forecastBtn} onClick={handleMakeForecast}>Make Forecast</button>
+              {activeForecast === prediction.id ? (
+                <div className={styles.forecastActions}>
+                  <button
+                    className={styles.cancelBtn}
+                    onClick={() => setActiveForecast(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={styles.submitBtn}
+                    onClick={() => handleSubmitForecast(prediction.id)}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Submit"}
+                  </button>
+                </div>
+              ) : (
+                <button className={styles.forecastBtn} onClick={() => handleMakeForecast(prediction.id)}>
+                  {userForecasts.some((f) => f.predictionId === prediction.id) ? "Update Forecast" : "Make Forecast"}
+                </button>
+              )}
             </div>
           </div>
         ))}

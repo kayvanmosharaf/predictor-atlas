@@ -16,7 +16,7 @@ const schema = a.schema({
       imageUrl: a.string(),
     })
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.publicApiKey(),
       allow.groups(["admin"]),
     ]),
 
@@ -33,7 +33,7 @@ const schema = a.schema({
       probability: a.float(),
     })
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.publicApiKey(),
       allow.groups(["admin"]),
     ]),
 
@@ -65,7 +65,7 @@ const schema = a.schema({
       analysis: a.string().required(),
     })
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.publicApiKey(),
       allow.groups(["admin"]),
     ]),
 });
