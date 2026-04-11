@@ -2,18 +2,25 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
+import { apiFetch } from "@/lib/api-client";
 import AuthModal from "../components/AuthModal";
 import PredictionForm from "../components/PredictionForm";
 import styles from "./my-predictions.module.css";
 
-const client = generateClient<Schema>();
+interface Outcome {
+  id: string;
+  label: string;
+  probability: number | null;
+}
 
-type Prediction = Schema["Prediction"]["type"];
-type Outcome = Schema["Outcome"]["type"];
-
-interface PredictionWithOutcomes extends Prediction {
+interface Prediction {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  visibility: string;
+  resolutionDate: string | null;
   outcomes: Outcome[];
 }
 
@@ -29,7 +36,7 @@ const categoryColors: Record<string, string> = {
 export default function MyPredictionsPage() {
   const { authStatus } = useAuthenticator();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [predictions, setPredictions] = useState<PredictionWithOutcomes[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
@@ -37,19 +44,8 @@ export default function MyPredictionsPage() {
 
   const fetchMyPredictions = async () => {
     try {
-      const { data: predictionData } = await client.models.Prediction.list({
-        authMode: "userPool",
-      });
-      const { data: outcomeData } = await client.models.Outcome.list({
-        authMode: "userPool",
-      });
-
-      const grouped = predictionData.map((p) => ({
-        ...p,
-        outcomes: outcomeData.filter((o) => o.predictionId === p.id),
-      }));
-
-      setPredictions(grouped);
+      const data = await apiFetch<Prediction[]>("/api/predictions?scope=mine");
+      setPredictions(data);
     } catch (err) {
       console.error("Failed to fetch predictions:", err);
     } finally {
@@ -69,10 +65,10 @@ export default function MyPredictionsPage() {
     setToggling(prediction.id);
     try {
       const newVisibility = prediction.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
-      await client.models.Prediction.update(
-        { id: prediction.id, visibility: newVisibility },
-        { authMode: "userPool" }
-      );
+      await apiFetch(`/api/predictions/${prediction.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ visibility: newVisibility }),
+      });
       setPredictions((prev) =>
         prev.map((p) =>
           p.id === prediction.id ? { ...p, visibility: newVisibility } : p
@@ -88,13 +84,7 @@ export default function MyPredictionsPage() {
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
-      const prediction = predictions.find((p) => p.id === id);
-      if (prediction) {
-        for (const o of prediction.outcomes) {
-          await client.models.Outcome.delete({ id: o.id }, { authMode: "userPool" });
-        }
-      }
-      await client.models.Prediction.delete({ id }, { authMode: "userPool" });
+      await apiFetch(`/api/predictions/${id}`, { method: "DELETE" });
       setPredictions((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error("Failed to delete prediction:", err);

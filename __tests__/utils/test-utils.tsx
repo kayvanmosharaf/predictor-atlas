@@ -34,11 +34,11 @@ export function setMockAdminState(isAdmin: boolean) {
 }
 
 /**
- * Get mock Amplify data client
+ * Get mock API client
  */
-export function getMockClient() {
-  const { generateClient } = require("aws-amplify/data");
-  return (generateClient as jest.Mock)();
+export function getMockApiFetch() {
+  const { apiFetch } = require("@/lib/api-client");
+  return apiFetch as jest.Mock;
 }
 
 /**

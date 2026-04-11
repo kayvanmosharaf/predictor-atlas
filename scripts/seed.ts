@@ -1,10 +1,9 @@
-import { Amplify } from "aws-amplify";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "../amplify/data/resource";
-import outputs from "../amplify_outputs.json";
+import { PrismaClient } from "../app/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import "dotenv/config";
 
-Amplify.configure(outputs);
-const client = generateClient<Schema>({ authMode: "apiKey" });
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 const seedPredictions = [
   {
@@ -90,26 +89,38 @@ async function seed() {
   console.log("Seeding predictions and outcomes...\n");
 
   for (const p of seedPredictions) {
-    const { outcomes, ...predictionData } = p;
-
-    const { data: prediction, errors } = await client.models.Prediction.create(predictionData);
-    if (errors || !prediction) {
-      console.error(`Failed to create prediction "${p.title}":`, errors);
+    // Skip if prediction with same title already exists
+    const existing = await prisma.prediction.findFirst({
+      where: { title: p.title },
+    });
+    if (existing) {
+      console.log(`Skipped (already exists): ${p.title}`);
       continue;
     }
-    console.log(`Created prediction: ${prediction.title} (${prediction.id})`);
 
-    for (const o of outcomes) {
-      const { data: outcome, errors: oErrors } = await client.models.Outcome.create({
-        predictionId: prediction.id,
-        label: o.label,
-        probability: o.probability,
-      });
-      if (oErrors || !outcome) {
-        console.error(`  Failed to create outcome "${o.label}":`, oErrors);
-        continue;
-      }
-      console.log(`  Created outcome: ${outcome.label} (${outcome.probability}%)`);
+    const prediction = await prisma.prediction.create({
+      data: {
+        title: p.title,
+        description: p.description,
+        category: p.category,
+        status: p.status,
+        visibility: "PUBLIC",
+        resolutionDate: p.resolutionDate,
+        owner: "seed-script",
+        outcomes: {
+          create: p.outcomes.map((o) => ({
+            label: o.label,
+            probability: o.probability,
+            owner: "seed-script",
+          })),
+        },
+      },
+      include: { outcomes: true },
+    });
+
+    console.log(`Created prediction: ${prediction.title} (${prediction.id})`);
+    for (const o of prediction.outcomes) {
+      console.log(`  Created outcome: ${o.label} (${o.probability}%)`);
     }
     console.log();
   }
@@ -117,4 +128,6 @@ async function seed() {
   console.log("Seed complete!");
 }
 
-seed().catch(console.error);
+seed()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());

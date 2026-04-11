@@ -2,22 +2,26 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
 import { useAdmin } from "../hooks/useAdmin";
+import { apiFetch } from "@/lib/api-client";
 import PredictionForm from "../components/PredictionForm";
 import styles from "./admin.module.css";
 
-const client = generateClient<Schema>();
-
-type Prediction = Schema["Prediction"]["type"];
+interface Prediction {
+  id: string;
+  title: string;
+  category: string;
+  status: string;
+  visibility: string;
+  owner: string;
+}
 
 const seedPredictions = [
   {
     title: "2026 US Midterm Elections",
-    category: "POLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "POLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Which party will control the House after the 2026 midterms? Game theory analysis of campaign strategies, voter turnout models, and redistricting effects.",
     outcomes: [
@@ -28,9 +32,9 @@ const seedPredictions = [
   },
   {
     title: "Global Recession Probability 2026-2027",
-    category: "ECONOMICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "ECONOMICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Will major economies enter recession by end of 2027? Strategic analysis of central bank policies, trade dynamics, and fiscal responses.",
     outcomes: [
@@ -42,9 +46,9 @@ const seedPredictions = [
   },
   {
     title: "NBA Finals 2026 Champion",
-    category: "SPORTS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "SPORTS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Predicting the 2026 NBA champion using game theory models of playoff matchups, coaching strategies, and player interactions.",
     outcomes: [
@@ -55,9 +59,9 @@ const seedPredictions = [
   },
   {
     title: "EU-China Trade Negotiations Outcome",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "How will EU-China trade negotiations resolve? Nash equilibrium analysis of tariff strategies, market access demands, and diplomatic leverage.",
     outcomes: [
@@ -69,9 +73,9 @@ const seedPredictions = [
   },
   {
     title: "US-Iran Military Conflict Probability",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "What is the likelihood of a direct US-Iran military confrontation by 2027? Game theory analysis of escalation dynamics, nuclear negotiations, proxy conflicts, and strategic deterrence models.",
     outcomes: [
@@ -84,9 +88,9 @@ const seedPredictions = [
   },
   {
     title: "AI Regulation Framework — US vs EU",
-    category: "TECHNOLOGY" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "TECHNOLOGY",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Will the US adopt EU-style AI regulation or diverge? Strategic analysis of industry lobbying, public pressure, and international competition dynamics.",
     outcomes: [
@@ -98,9 +102,9 @@ const seedPredictions = [
   },
   {
     title: "2026 FIFA World Cup Qualifying — CONCACAF",
-    category: "SPORTS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "SPORTS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Which CONCACAF teams will qualify for the 2026 FIFA World Cup? Analysis of squad depth, home-field advantage, and strategic rest patterns across the qualifying campaign.",
     outcomes: [
@@ -112,9 +116,9 @@ const seedPredictions = [
   },
   {
     title: "Federal Reserve Rate Cuts by End of 2026",
-    category: "ECONOMICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "ECONOMICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "How many basis points will the Fed cut by December 2026? Game theory analysis of inflation expectations, labor market signals, and central bank signaling strategies.",
     outcomes: [
@@ -126,9 +130,9 @@ const seedPredictions = [
   },
   {
     title: "Taiwan Strait Crisis Escalation",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Will tensions in the Taiwan Strait escalate to a military blockade or conflict by 2028? Strategic analysis of deterrence credibility, alliance commitments, and economic interdependence.",
     outcomes: [
@@ -141,9 +145,9 @@ const seedPredictions = [
   },
   {
     title: "Global Adoption of Central Bank Digital Currencies",
-    category: "ECONOMICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "ECONOMICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "How many G20 nations will have a live retail CBDC by 2028? Analysis of monetary policy incentives, privacy trade-offs, and competitive dynamics between central banks.",
     outcomes: [
@@ -155,9 +159,9 @@ const seedPredictions = [
   },
   {
     title: "SpaceX Starship Crewed Mars Mission by 2030",
-    category: "TECHNOLOGY" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "TECHNOLOGY",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Will SpaceX launch a crewed mission to Mars by 2030? Strategic analysis of technical milestones, funding dynamics, regulatory hurdles, and competition with NASA Artemis.",
     outcomes: [
@@ -169,9 +173,9 @@ const seedPredictions = [
   },
   {
     title: "2028 US Presidential Election",
-    category: "POLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "POLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Which party will win the 2028 US presidential election? Game theory analysis of primary dynamics, coalition building, swing state strategies, and demographic shifts.",
     outcomes: [
@@ -183,9 +187,9 @@ const seedPredictions = [
   },
   {
     title: "Artificial General Intelligence Timeline",
-    category: "TECHNOLOGY" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "TECHNOLOGY",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "When will a system broadly recognized as AGI be demonstrated? Analysis of compute scaling laws, research breakthroughs, safety constraints, and competitive dynamics among AI labs.",
     outcomes: [
@@ -198,9 +202,9 @@ const seedPredictions = [
   },
   {
     title: "Ukraine-Russia Conflict Resolution",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "How will the Ukraine-Russia conflict resolve? Nash equilibrium analysis of territorial concessions, sanctions leverage, alliance fatigue, and domestic political pressures.",
     outcomes: [
@@ -213,9 +217,9 @@ const seedPredictions = [
   },
   {
     title: "Global Electric Vehicle Market Share 2027",
-    category: "ECONOMICS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "ECONOMICS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "What share of new car sales globally will be fully electric by 2027? Analysis of battery cost curves, charging infrastructure investment, government subsidies, and consumer adoption dynamics.",
     outcomes: [
@@ -228,9 +232,9 @@ const seedPredictions = [
   },
   {
     title: "Premier League 2026-27 Champion",
-    category: "SPORTS" as const,
-    status: "OPEN" as const,
-    visibility: "PUBLIC" as const,
+    category: "SPORTS",
+    status: "OPEN",
+    visibility: "PUBLIC",
     description:
       "Which club will win the 2026-27 Premier League title? Game theory analysis of squad investment strategies, managerial tactics, fixture congestion, and transfer market dynamics.",
     outcomes: [
@@ -242,16 +246,6 @@ const seedPredictions = [
     resolutionDate: "2027-05-31",
   },
 ];
-
-interface SeedPrediction {
-  title: string;
-  category: string;
-  status: string;
-  visibility: string;
-  description: string;
-  outcomes: { label: string; probability: number }[];
-  resolutionDate?: string;
-}
 
 export default function AdminPage() {
   const { authStatus } = useAuthenticator();
@@ -269,9 +263,7 @@ export default function AdminPage() {
 
   const fetchPredictions = async () => {
     try {
-      const { data } = await client.models.Prediction.list({
-        authMode: "userPool",
-      });
+      const data = await apiFetch<Prediction[]>("/api/predictions?scope=all");
       setPredictions(data);
     } catch (err) {
       console.error("Failed to fetch predictions:", err);
@@ -286,63 +278,18 @@ export default function AdminPage() {
     }
   }, [authStatus, isAdmin]);
 
-  const seedFromData = async (data: SeedPrediction[]) => {
-    const { data: existing } = await client.models.Prediction.list({
-      authMode: "userPool",
-    });
-    const existingTitles = new Set(existing.map((p) => p.title));
-
-    let created = 0;
-    let skipped = 0;
-
-    for (const p of data) {
-      if (existingTitles.has(p.title)) {
-        skipped++;
-        continue;
-      }
-
-      const { outcomes, ...predictionData } = p;
-      const { data: prediction, errors } =
-        await client.models.Prediction.create(
-          {
-            ...predictionData,
-            category: predictionData.category as "POLITICS" | "ECONOMICS" | "SPORTS" | "GEOPOLITICS" | "TECHNOLOGY" | "OTHER",
-            status: (predictionData.status as "OPEN" | "CLOSED" | "RESOLVED") || "OPEN",
-            visibility: (predictionData.visibility as "PRIVATE" | "PUBLIC") || "PUBLIC",
-          },
-          { authMode: "userPool" }
-        );
-
-      if (errors || !prediction) {
-        console.error(`Failed to create "${p.title}":`, errors);
-        continue;
-      }
-
-      for (const o of outcomes) {
-        await client.models.Outcome.create(
-          {
-            predictionId: prediction.id,
-            label: o.label,
-            probability: o.probability,
-          },
-          { authMode: "userPool" }
-        );
-      }
-      created++;
-    }
-
-    return { created, skipped };
-  };
-
   const handleSeed = async () => {
     setSeeding(true);
     setSeedStatus("");
     setSeedError("");
 
     try {
-      const { created, skipped } = await seedFromData(seedPredictions);
+      const result = await apiFetch<{ created: number; skipped: number }>(
+        "/api/seed",
+        { method: "POST", body: JSON.stringify(seedPredictions) }
+      );
       setSeedStatus(
-        `Seeded ${created} prediction(s)${skipped > 0 ? `, skipped ${skipped} duplicate(s)` : ""}.`
+        `Seeded ${result.created} prediction(s)${result.skipped > 0 ? `, skipped ${result.skipped} duplicate(s)` : ""}.`
       );
       await fetchPredictions();
     } catch (err) {
@@ -363,7 +310,7 @@ export default function AdminPage() {
 
     try {
       const text = await file.text();
-      const data = JSON.parse(text) as SeedPrediction[];
+      const data = JSON.parse(text);
 
       if (!Array.isArray(data)) {
         throw new Error("File must contain a JSON array of predictions.");
@@ -377,9 +324,12 @@ export default function AdminPage() {
         }
       }
 
-      const { created, skipped } = await seedFromData(data);
+      const result = await apiFetch<{ created: number; skipped: number }>(
+        "/api/seed",
+        { method: "POST", body: JSON.stringify(data) }
+      );
       setUploadStatus(
-        `Uploaded ${created} prediction(s) from file${skipped > 0 ? `, skipped ${skipped} duplicate(s)` : ""}.`
+        `Uploaded ${result.created} prediction(s) from file${result.skipped > 0 ? `, skipped ${result.skipped} duplicate(s)` : ""}.`
       );
       await fetchPredictions();
     } catch (err) {
@@ -398,15 +348,7 @@ export default function AdminPage() {
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
-      const { data: outcomes } = await client.models.Outcome.list({
-        authMode: "userPool",
-      });
-      const related = outcomes.filter((o) => o.predictionId === id);
-      for (const o of related) {
-        await client.models.Outcome.delete({ id: o.id }, { authMode: "userPool" });
-      }
-
-      await client.models.Prediction.delete({ id }, { authMode: "userPool" });
+      await apiFetch(`/api/predictions/${id}`, { method: "DELETE" });
       setPredictions((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error("Delete failed:", err);

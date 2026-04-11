@@ -21,35 +21,9 @@ jest.mock("aws-amplify/auth", () => ({
   signUp: jest.fn(),
 }));
 
-jest.mock("aws-amplify/data", () => ({
-  generateClient: jest.fn(() => ({
-    models: {
-      Prediction: {
-        list: jest.fn().mockResolvedValue({ data: [] }),
-        create: jest.fn().mockResolvedValue({ data: {} }),
-        update: jest.fn().mockResolvedValue({ data: {} }),
-        delete: jest.fn().mockResolvedValue({ data: {} }),
-      },
-      Outcome: {
-        list: jest.fn().mockResolvedValue({ data: [] }),
-        create: jest.fn().mockResolvedValue({ data: {} }),
-        update: jest.fn().mockResolvedValue({ data: {} }),
-        delete: jest.fn().mockResolvedValue({ data: {} }),
-      },
-      Forecast: {
-        list: jest.fn().mockResolvedValue({ data: [] }),
-        create: jest.fn().mockResolvedValue({ data: {} }),
-        update: jest.fn().mockResolvedValue({ data: {} }),
-        delete: jest.fn().mockResolvedValue({ data: {} }),
-      },
-      GameTheoryModel: {
-        list: jest.fn().mockResolvedValue({ data: [] }),
-        create: jest.fn().mockResolvedValue({ data: {} }),
-        update: jest.fn().mockResolvedValue({ data: {} }),
-        delete: jest.fn().mockResolvedValue({ data: {} }),
-      },
-    },
-  })),
+// Mock the API client used by all pages
+jest.mock("@/lib/api-client", () => ({
+  apiFetch: jest.fn().mockResolvedValue([]),
 }));
 
 // Mock @aws-amplify/ui-react

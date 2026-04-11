@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
+import { apiFetch } from "@/lib/api-client";
 import styles from "./PredictionForm.module.css";
-
-const client = generateClient<Schema>();
 
 const categories = ["POLITICS", "ECONOMICS", "SPORTS", "GEOPOLITICS", "TECHNOLOGY", "OTHER"] as const;
 
@@ -61,33 +58,21 @@ export default function PredictionForm({
 
     setSaving(true);
     try {
-      const { data: prediction, errors } = await client.models.Prediction.create(
-        {
+      await apiFetch("/api/predictions", {
+        method: "POST",
+        body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
           category,
           status: "OPEN",
           visibility,
           resolutionDate: resolutionDate || undefined,
-        },
-        { authMode: "userPool" }
-      );
-
-      if (errors || !prediction) {
-        console.error("Failed to create prediction:", errors);
-        return;
-      }
-
-      for (const o of validOutcomes) {
-        await client.models.Outcome.create(
-          {
-            predictionId: prediction.id,
+          outcomes: validOutcomes.map((o) => ({
             label: o.label.trim(),
             probability: o.probability,
-          },
-          { authMode: "userPool" }
-        );
-      }
+          })),
+        }),
+      });
 
       onCreated();
     } catch (err) {

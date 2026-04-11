@@ -2,19 +2,32 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "@/amplify/data/resource";
+import { apiFetch } from "@/lib/api-client";
 import AuthModal from "../components/AuthModal";
 import styles from "./predictions.module.css";
 
-const client = generateClient<Schema>();
+interface Outcome {
+  id: string;
+  predictionId: string;
+  label: string;
+  probability: number | null;
+}
 
-type Prediction = Schema["Prediction"]["type"];
-type Outcome = Schema["Outcome"]["type"];
-type Forecast = Schema["Forecast"]["type"];
-
-interface PredictionWithOutcomes extends Prediction {
+interface Prediction {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  resolutionDate: string | null;
   outcomes: Outcome[];
+}
+
+interface Forecast {
+  id: string;
+  predictionId: string;
+  outcomeId: string;
+  confidence: number;
 }
 
 const categoryColors: Record<string, string> = {
@@ -31,7 +44,7 @@ export default function PredictionsPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [activeForecast, setActiveForecast] = useState<string | null>(null);
   const [forecasts, setForecasts] = useState<Record<string, Record<string, number>>>({});
-  const [predictions, setPredictions] = useState<PredictionWithOutcomes[]>([]);
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [userForecasts, setUserForecasts] = useState<Forecast[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,24 +52,12 @@ export default function PredictionsPage() {
   const [analysisStatus, setAnalysisStatus] = useState<Record<string, string>>({});
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
 
-  // Fetch predictions and their outcomes
+  // Fetch public predictions
   useEffect(() => {
     async function fetchData() {
       try {
-        const { data: predictionData } = await client.models.Prediction.list();
-        const { data: outcomeData } = await client.models.Outcome.list();
-
-        // Only show PUBLIC predictions on the main page
-        const publicPredictions = predictionData.filter(
-          (p) => !p.visibility || p.visibility === "PUBLIC"
-        );
-
-        const grouped = publicPredictions.map((p) => ({
-          ...p,
-          outcomes: outcomeData.filter((o) => o.predictionId === p.id),
-        }));
-
-        setPredictions(grouped);
+        const data = await apiFetch<Prediction[]>("/api/predictions?scope=public");
+        setPredictions(data);
       } catch (err) {
         console.error("Failed to fetch predictions:", err);
       } finally {
@@ -73,9 +74,7 @@ export default function PredictionsPage() {
       return;
     }
     try {
-      const { data } = await client.models.Forecast.list({
-        authMode: "userPool",
-      });
+      const data = await apiFetch<Forecast[]>("/api/forecasts");
       setUserForecasts(data);
 
       // Pre-fill slider values from existing forecasts
@@ -131,30 +130,16 @@ export default function PredictionsPage() {
     try {
       for (const outcome of prediction.outcomes) {
         const confidence = getForecastValue(predictionId, outcome.label, outcome.probability ?? 0);
-
-        // Check if user already has a forecast for this outcome
-        const existingForecast = userForecasts.find(
-          (f) => f.predictionId === predictionId && f.outcomeId === outcome.id
-        );
-
-        if (existingForecast) {
-          await client.models.Forecast.update(
-            { id: existingForecast.id, confidence },
-            { authMode: "userPool" }
-          );
-        } else {
-          await client.models.Forecast.create(
-            {
-              predictionId,
-              outcomeId: outcome.id,
-              confidence,
-            },
-            { authMode: "userPool" }
-          );
-        }
+        await apiFetch("/api/forecasts", {
+          method: "POST",
+          body: JSON.stringify({
+            predictionId,
+            outcomeId: outcome.id,
+            confidence,
+          }),
+        });
       }
 
-      // Reload user forecasts
       await loadUserForecasts();
       setActiveForecast(null);
     } catch (err) {
@@ -173,41 +158,31 @@ export default function PredictionsPage() {
       return next;
     });
     try {
-      const res = await fetch("/api/analyze", {
+      const data = await apiFetch<{
+        analysis?: string;
+        nashEquilibria?: string[];
+        dominantStrategies?: string[];
+      }>("/api/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ predictionId }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Analysis failed");
-      }
-      const data = await res.json();
+
       setAnalysisStatus((prev) => ({ ...prev, [predictionId]: "Analysis complete!" }));
 
       // Refresh predictions to show updated probabilities
-      const { data: predictionData } = await client.models.Prediction.list();
-      const { data: outcomeData } = await client.models.Outcome.list();
-      const grouped = predictionData.map((p) => ({
-        ...p,
-        outcomes: outcomeData.filter((o) => o.predictionId === p.id),
-      }));
-      setPredictions(grouped);
+      const refreshed = await apiFetch<Prediction[]>("/api/predictions?scope=public");
+      setPredictions(refreshed);
 
-      // Extract analysis from Lambda response
-      const lambdaBody = data.result?.body ? JSON.parse(data.result.body) : null;
-      const analysisResult = lambdaBody?.results?.find(
-        (r: { predictionId: string }) => r.predictionId === predictionId
-      );
-      if (analysisResult) {
-        const parts: string[] = [];
-        if (analysisResult.analysis) parts.push(analysisResult.analysis);
-        if (analysisResult.nashEquilibria?.length > 0) {
-          parts.push(`\nNash Equilibria:\n${analysisResult.nashEquilibria.map((e: string) => `  - ${e}`).join("\n")}`);
-        }
-        if (analysisResult.dominantStrategies?.length > 0) {
-          parts.push(`\nDominant Strategies:\n${analysisResult.dominantStrategies.map((s: string) => `  - ${s}`).join("\n")}`);
-        }
+      // Display analysis results
+      const parts: string[] = [];
+      if (data.analysis) parts.push(data.analysis);
+      if (data.nashEquilibria?.length) {
+        parts.push(`\nNash Equilibria:\n${data.nashEquilibria.map((e: string) => `  - ${e}`).join("\n")}`);
+      }
+      if (data.dominantStrategies?.length) {
+        parts.push(`\nDominant Strategies:\n${data.dominantStrategies.map((s: string) => `  - ${s}`).join("\n")}`);
+      }
+      if (parts.length > 0) {
         setAnalysisResults((prev) => ({ ...prev, [predictionId]: parts.join("\n") }));
       }
     } catch (err) {

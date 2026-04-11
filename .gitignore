@@ -28,7 +28,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+
+# prisma
+app/generated/prisma
 
 # vercel
 .vercel
@@ -41,3 +45,5 @@ next-env.d.ts
 amplify_outputs.json
 amplify_outputs.d.ts
 .amplify/
+
+/app/generated/prisma
