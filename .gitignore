@@ -47,3 +47,6 @@ amplify_outputs.d.ts
 .amplify/
 
 /app/generated/prisma
+
+# accidental directories
+~/
