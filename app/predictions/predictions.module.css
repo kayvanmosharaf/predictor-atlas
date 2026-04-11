@@ -292,6 +292,76 @@
   cursor: not-allowed;
 }
 
+.analyzeBtn {
+  padding: 0.4rem 1rem;
+  font-size: 0.8rem;
+  background: #8b5cf6;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.analyzeBtn:hover {
+  background: #7c3aed;
+}
+
+.analyzeBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.analysisStatus {
+  font-size: 0.75rem;
+  color: #a78bfa;
+}
+
+.analysisOutput {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+}
+
+.analysisOutputHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+.analysisCloseBtn {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  background: transparent;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+  color: #a78bfa;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.analysisCloseBtn:hover {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.analysisText {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
 @media (max-width: 640px) {
   .page {
     padding: 1.5rem 0.75rem;

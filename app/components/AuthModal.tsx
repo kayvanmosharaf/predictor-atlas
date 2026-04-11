@@ -45,13 +45,18 @@ function AuthHeader() {
 }
 
 function SignInFooter() {
-  const { toSignUp } = useAuthenticator();
+  const { toSignUp, toForgotPassword } = useAuthenticator();
   return (
-    <div className={styles.signUpFooter}>
-      <span>Don&apos;t have an account?</span>
-      <button className={styles.signUpLink} onClick={toSignUp} type="button">
-        Create Account
+    <div className={styles.signInFooter}>
+      <button className={styles.forgotLink} onClick={toForgotPassword} type="button">
+        Forgot Password?
       </button>
+      <div className={styles.signUpFooter}>
+        <span>Don&apos;t have an account?</span>
+        <button className={styles.signUpLink} onClick={toSignUp} type="button">
+          Create Account
+        </button>
+      </div>
     </div>
   );
 }

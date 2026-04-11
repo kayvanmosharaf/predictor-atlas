@@ -37,12 +37,20 @@ export default function Navbar() {
             </Link>
           ))}
           {authStatus === "authenticated" && (
-            <Link
-              href="/dashboard"
-              className={pathname === "/dashboard" ? styles.active : ""}
-            >
-              Dashboard
-            </Link>
+            <>
+              <Link
+                href="/my-predictions"
+                className={pathname === "/my-predictions" ? styles.active : ""}
+              >
+                My Predictions
+              </Link>
+              <Link
+                href="/dashboard"
+                className={pathname === "/dashboard" ? styles.active : ""}
+              >
+                Dashboard
+              </Link>
+            </>
           )}
           {isAdmin && (
             <Link

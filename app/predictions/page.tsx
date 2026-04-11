@@ -35,6 +35,9 @@ export default function PredictionsPage() {
   const [userForecasts, setUserForecasts] = useState<Forecast[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<Record<string, string>>({});
+  const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
 
   // Fetch predictions and their outcomes
   useEffect(() => {
@@ -43,7 +46,12 @@ export default function PredictionsPage() {
         const { data: predictionData } = await client.models.Prediction.list();
         const { data: outcomeData } = await client.models.Outcome.list();
 
-        const grouped = predictionData.map((p) => ({
+        // Only show PUBLIC predictions on the main page
+        const publicPredictions = predictionData.filter(
+          (p) => !p.visibility || p.visibility === "PUBLIC"
+        );
+
+        const grouped = publicPredictions.map((p) => ({
           ...p,
           outcomes: outcomeData.filter((o) => o.predictionId === p.id),
         }));
@@ -156,6 +164,67 @@ export default function PredictionsPage() {
     }
   };
 
+  const handleRunAnalysis = async (predictionId: string) => {
+    setAnalyzing(predictionId);
+    setAnalysisStatus((prev) => ({ ...prev, [predictionId]: "Running AI analysis..." }));
+    setAnalysisResults((prev) => {
+      const next = { ...prev };
+      delete next[predictionId];
+      return next;
+    });
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ predictionId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Analysis failed");
+      }
+      const data = await res.json();
+      setAnalysisStatus((prev) => ({ ...prev, [predictionId]: "Analysis complete!" }));
+
+      // Refresh predictions to show updated probabilities
+      const { data: predictionData } = await client.models.Prediction.list();
+      const { data: outcomeData } = await client.models.Outcome.list();
+      const grouped = predictionData.map((p) => ({
+        ...p,
+        outcomes: outcomeData.filter((o) => o.predictionId === p.id),
+      }));
+      setPredictions(grouped);
+
+      // Extract analysis from Lambda response
+      const lambdaBody = data.result?.body ? JSON.parse(data.result.body) : null;
+      const analysisResult = lambdaBody?.results?.find(
+        (r: { predictionId: string }) => r.predictionId === predictionId
+      );
+      if (analysisResult) {
+        const parts: string[] = [];
+        if (analysisResult.analysis) parts.push(analysisResult.analysis);
+        if (analysisResult.nashEquilibria?.length > 0) {
+          parts.push(`\nNash Equilibria:\n${analysisResult.nashEquilibria.map((e: string) => `  - ${e}`).join("\n")}`);
+        }
+        if (analysisResult.dominantStrategies?.length > 0) {
+          parts.push(`\nDominant Strategies:\n${analysisResult.dominantStrategies.map((s: string) => `  - ${s}`).join("\n")}`);
+        }
+        setAnalysisResults((prev) => ({ ...prev, [predictionId]: parts.join("\n") }));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Analysis failed";
+      setAnalysisStatus((prev) => ({ ...prev, [predictionId]: message }));
+    } finally {
+      setAnalyzing(null);
+      setTimeout(() => {
+        setAnalysisStatus((prev) => {
+          const next = { ...prev };
+          delete next[predictionId];
+          return next;
+        });
+      }, 3000);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.page}>
@@ -262,6 +331,13 @@ export default function PredictionsPage() {
                     Cancel
                   </button>
                   <button
+                    className={styles.analyzeBtn}
+                    onClick={() => handleRunAnalysis(prediction.id)}
+                    disabled={analyzing === prediction.id}
+                  >
+                    {analyzing === prediction.id ? "Analyzing..." : "Run Analysis"}
+                  </button>
+                  <button
                     className={styles.submitBtn}
                     onClick={() => handleSubmitForecast(prediction.id)}
                     disabled={saving}
@@ -274,7 +350,30 @@ export default function PredictionsPage() {
                   {userForecasts.some((f) => f.predictionId === prediction.id) ? "Update Forecast" : "Make Forecast"}
                 </button>
               )}
+              {analysisStatus[prediction.id] && (
+                <span className={styles.analysisStatus}>{analysisStatus[prediction.id]}</span>
+              )}
             </div>
+            {analysisResults[prediction.id] && (
+              <div className={styles.analysisOutput}>
+                <div className={styles.analysisOutputHeader}>
+                  <span>AI Analysis</span>
+                  <button
+                    className={styles.analysisCloseBtn}
+                    onClick={() =>
+                      setAnalysisResults((prev) => {
+                        const next = { ...prev };
+                        delete next[prediction.id];
+                        return next;
+                      })
+                    }
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <pre className={styles.analysisText}>{analysisResults[prediction.id]}</pre>
+              </div>
+            )}
           </div>
         ))}
       </div>

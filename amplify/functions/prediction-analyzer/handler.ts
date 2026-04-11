@@ -221,14 +221,28 @@ IMPORTANT: The outcome probabilities MUST sum to 100. Return ONLY valid JSON.`,
   return result;
 }
 
-export const handler: Handler = async () => {
+export const handler: Handler = async (event) => {
   console.log("Starting prediction analysis...");
+
+  const targetPredictionId = event?.predictionId as string | undefined;
 
   const predictions = await listPredictions();
   const allOutcomes = await listOutcomes();
 
-  const openPredictions = predictions.filter((p) => p.status === "OPEN");
+  let openPredictions = predictions.filter((p) => p.status === "OPEN");
+  if (targetPredictionId) {
+    openPredictions = openPredictions.filter((p) => p.id === targetPredictionId);
+  }
   console.log(`Found ${openPredictions.length} open predictions to analyze`);
+
+  const results: Array<{
+    predictionId: string;
+    title: string;
+    outcomes: Array<{ label: string; probability: number }>;
+    analysis: string;
+    nashEquilibria: string[];
+    dominantStrategies: string[];
+  }> = [];
 
   for (const prediction of openPredictions) {
     const outcomes = allOutcomes.filter((o) => o.predictionId === prediction.id);
@@ -254,11 +268,20 @@ export const handler: Handler = async () => {
       const existingModelId = await getExistingModel(prediction.id);
       await upsertGameTheoryModel(prediction.id, existingModelId, result);
       console.log(`  Saved game theory analysis`);
+
+      results.push({
+        predictionId: prediction.id,
+        title: prediction.title,
+        outcomes: result.outcomes,
+        analysis: result.analysis,
+        nashEquilibria: result.nashEquilibria,
+        dominantStrategies: result.dominantStrategies,
+      });
     } catch (err) {
       console.error(`  Failed to analyze "${prediction.title}":`, err);
     }
   }
 
   console.log("\nAnalysis complete!");
-  return { statusCode: 200, body: "Analysis complete" };
+  return { statusCode: 200, body: JSON.stringify({ results }) };
 };

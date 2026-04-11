@@ -8,5 +8,4 @@ export const predictionAnalyzer = defineFunction({
   environment: {
     ANTHROPIC_API_KEY: secret("ANTHROPIC_API_KEY"),
   },
-  schedule: "every 1h",
 });

@@ -11,12 +11,14 @@ const schema = a.schema({
       description: a.string().required(),
       category: a.enum(["POLITICS", "ECONOMICS", "SPORTS", "GEOPOLITICS", "TECHNOLOGY", "OTHER"]),
       status: a.enum(["OPEN", "CLOSED", "RESOLVED"]),
+      visibility: a.enum(["PRIVATE", "PUBLIC"]),
       resolutionDate: a.string(),
       resolvedOutcome: a.string(),
       imageUrl: a.string(),
     })
     .authorization((allow) => [
-      allow.publicApiKey(),
+      allow.owner(),
+      allow.publicApiKey().to(["read"]),
       allow.groups(["admin"]),
     ]),
 
@@ -33,7 +35,8 @@ const schema = a.schema({
       probability: a.float(),
     })
     .authorization((allow) => [
-      allow.publicApiKey(),
+      allow.owner(),
+      allow.publicApiKey().to(["read"]),
       allow.groups(["admin"]),
     ]),
 
