@@ -51,6 +51,7 @@ export default function PredictionsPage() {
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<Record<string, string>>({});
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
+  const [activeFilter, setActiveFilter] = useState("All");
 
   // Fetch public predictions
   useEffect(() => {
@@ -221,7 +222,11 @@ export default function PredictionsPage() {
       <div className={styles.filters}>
         {["All", "Politics", "Economics", "Sports", "Geopolitics", "Technology"].map(
           (filter) => (
-            <button key={filter} className={styles.filterBtn}>
+            <button
+              key={filter}
+              className={`${styles.filterBtn} ${activeFilter === filter ? styles.filterActive : ""}`}
+              onClick={() => setActiveFilter(filter)}
+            >
               {filter}
             </button>
           )
@@ -232,7 +237,9 @@ export default function PredictionsPage() {
         {predictions.length === 0 && (
           <p style={{ color: "#64748b" }}>No predictions yet. Seed the database to get started.</p>
         )}
-        {predictions.map((prediction) => (
+        {predictions
+          .filter((p) => activeFilter === "All" || p.category === activeFilter.toUpperCase())
+          .map((prediction) => (
           <div key={prediction.id} className={styles.card}>
             <div className={styles.cardHeader}>
               <span

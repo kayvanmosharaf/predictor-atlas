@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import styles from "./Navbar.module.css";
 import { useAdmin } from "../hooks/useAdmin";
@@ -16,17 +16,34 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { authStatus, signOut } = useAuthenticator();
   const { isAdmin } = useAdmin();
+
+  // Close menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <>
       <nav className={styles.navbar}>
-        <Link href="/" className={styles.logo}>
-          PredictorAtlas
-        </Link>
+        <div className={styles.leftGroup}>
+          <button
+            className={styles.hamburger}
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+          >
+            <span className={`${styles.hamburgerLine} ${menuOpen ? styles.hamburgerOpen1 : ""}`} />
+            <span className={`${styles.hamburgerLine} ${menuOpen ? styles.hamburgerOpen2 : ""}`} />
+            <span className={`${styles.hamburgerLine} ${menuOpen ? styles.hamburgerOpen3 : ""}`} />
+          </button>
+          <Link href="/" className={styles.logo}>
+            PredictorAtlas
+          </Link>
+        </div>
 
-        <div className={styles.links}>
+        <div className={`${styles.links} ${menuOpen ? styles.linksOpen : ""}`}>
           {links.map(({ href, label }) => (
             <Link
               key={href}
@@ -74,6 +91,11 @@ export default function Navbar() {
           )}
         </div>
       </nav>
+
+      {menuOpen && (
+        <div className={styles.overlay} onClick={() => setMenuOpen(false)} />
+      )}
+
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
     </>
   );
