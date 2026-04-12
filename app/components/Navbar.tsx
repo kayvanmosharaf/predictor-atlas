@@ -8,7 +8,7 @@ import styles from "./Navbar.module.css";
 import { useAdmin } from "../hooks/useAdmin";
 import AuthModal from "./AuthModal";
 
-const links = [
+const navLinks = [
   { href: "/predictions", label: "Predictions" },
   { href: "/about", label: "About" },
 ];
@@ -24,6 +24,56 @@ export default function Navbar() {
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  const linkItems = (
+    <>
+      {navLinks.map(({ href, label }) => (
+        <Link
+          key={href}
+          href={href}
+          className={pathname === href ? styles.active : ""}
+        >
+          {label}
+        </Link>
+      ))}
+      {authStatus === "authenticated" && (
+        <>
+          <Link
+            href="/my-predictions"
+            className={pathname === "/my-predictions" ? styles.active : ""}
+          >
+            My Predictions
+          </Link>
+          <Link
+            href="/dashboard"
+            className={pathname === "/dashboard" ? styles.active : ""}
+          >
+            Dashboard
+          </Link>
+        </>
+      )}
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className={`${styles.adminLink} ${pathname.startsWith("/admin") ? styles.active : ""}`}
+        >
+          Admin
+        </Link>
+      )}
+      {authStatus === "authenticated" ? (
+        <button onClick={signOut} className={styles.signOutBtn}>
+          Sign Out
+        </button>
+      ) : (
+        <button
+          className={styles.signInBtn}
+          onClick={() => { setMenuOpen(false); setShowAuthModal(true); }}
+        >
+          Sign In
+        </button>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -43,57 +93,20 @@ export default function Navbar() {
           </Link>
         </div>
 
-        <div className={`${styles.links} ${menuOpen ? styles.linksOpen : ""}`}>
-          {links.map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={pathname === href ? styles.active : ""}
-            >
-              {label}
-            </Link>
-          ))}
-          {authStatus === "authenticated" && (
-            <>
-              <Link
-                href="/my-predictions"
-                className={pathname === "/my-predictions" ? styles.active : ""}
-              >
-                My Predictions
-              </Link>
-              <Link
-                href="/dashboard"
-                className={pathname === "/dashboard" ? styles.active : ""}
-              >
-                Dashboard
-              </Link>
-            </>
-          )}
-          {isAdmin && (
-            <Link
-              href="/admin"
-              className={`${styles.adminLink} ${pathname.startsWith("/admin") ? styles.active : ""}`}
-            >
-              Admin
-            </Link>
-          )}
-          {authStatus === "authenticated" ? (
-            <button onClick={signOut} className={styles.signOutBtn}>
-              Sign Out
-            </button>
-          ) : (
-            <button
-              className={styles.signInBtn}
-              onClick={() => setShowAuthModal(true)}
-            >
-              Sign In
-            </button>
-          )}
+        {/* Desktop links — inside nav */}
+        <div className={styles.desktopLinks}>
+          {linkItems}
         </div>
       </nav>
 
+      {/* Mobile menu — outside nav so z-index works */}
       {menuOpen && (
-        <div className={styles.overlay} onClick={() => setMenuOpen(false)} />
+        <>
+          <div className={styles.mobileMenu}>
+            {linkItems}
+          </div>
+          <div className={styles.overlay} onClick={() => setMenuOpen(false)} />
+        </>
       )}
 
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
