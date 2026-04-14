@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { query, stringField, numberOrNull } from "@/lib/db";
 import { authenticateRequest, requireAuth } from "@/lib/auth";
 
 // GET /api/outcomes?predictionId=xxx
@@ -16,15 +16,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Check prediction access
-    const prediction = await prisma.prediction.findUnique({
-      where: { id: predictionId },
-    });
+    const predictions = (
+      await query(`SELECT * FROM "Prediction" WHERE "id" = :id`, [
+        { name: "id", value: stringField(predictionId) },
+      ])
+    ).records;
 
-    if (!prediction) {
+    if (predictions.length === 0) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const prediction = predictions[0];
     if (
       prediction.visibility !== "PUBLIC" &&
       prediction.owner !== user?.sub &&
@@ -33,10 +35,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const outcomes = await prisma.outcome.findMany({
-      where: { predictionId },
-      orderBy: { createdAt: "asc" },
-    });
+    const outcomes = (
+      await query(
+        `SELECT * FROM "Outcome" WHERE "predictionId" = :predictionId ORDER BY "createdAt" ASC`,
+        [{ name: "predictionId", value: stringField(predictionId) }]
+      )
+    ).records;
 
     return NextResponse.json(outcomes);
   } catch (error) {
@@ -68,27 +72,50 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify prediction ownership
-    const prediction = await prisma.prediction.findUnique({
-      where: { id: predictionId },
-    });
-    if (!prediction) {
-      return NextResponse.json({ error: "Prediction not found" }, { status: 404 });
+    const predictions = (
+      await query(`SELECT * FROM "Prediction" WHERE "id" = :id`, [
+        { name: "id", value: stringField(predictionId) },
+      ])
+    ).records;
+
+    if (predictions.length === 0) {
+      return NextResponse.json(
+        { error: "Prediction not found" },
+        { status: 404 }
+      );
     }
-    if (prediction.owner !== user.sub && !user.isAdmin) {
+    if (predictions[0].owner !== user.sub && !user.isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const outcome = await prisma.outcome.create({
-      data: {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await query(
+      `INSERT INTO "Outcome" ("id", "predictionId", "label", "probability", "owner", "createdAt", "updatedAt")
+       VALUES (:id, :predictionId, :label, :probability, :owner, :now, :now)`,
+      [
+        { name: "id", value: stringField(id) },
+        { name: "predictionId", value: stringField(predictionId) },
+        { name: "label", value: stringField(label.trim()) },
+        { name: "probability", value: numberOrNull(probability) },
+        { name: "owner", value: stringField(user.sub) },
+        { name: "now", value: stringField(now) },
+      ]
+    );
+
+    return NextResponse.json(
+      {
+        id,
         predictionId,
         label: label.trim(),
         probability: probability ?? null,
         owner: user.sub,
+        createdAt: now,
+        updatedAt: now,
       },
-    });
-
-    return NextResponse.json(outcome, { status: 201 });
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Failed to create outcome:", error);
     return NextResponse.json(

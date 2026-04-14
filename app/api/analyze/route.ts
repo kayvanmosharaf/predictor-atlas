@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { prisma } from "@/lib/prisma";
+import { query, stringField } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 interface AnalysisResult {
@@ -25,16 +25,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "predictionId is required" }, { status: 400 });
   }
 
-  const prediction = await prisma.prediction.findUnique({
-    where: { id: predictionId },
-    include: { outcomes: true },
-  });
+  const predictions = (
+    await query(`SELECT * FROM "Prediction" WHERE "id" = :id`, [
+      { name: "id", value: stringField(predictionId) },
+    ])
+  ).records;
 
-  if (!prediction) {
+  if (predictions.length === 0) {
     return NextResponse.json({ error: "Prediction not found" }, { status: 404 });
   }
 
-  if (prediction.outcomes.length === 0) {
+  const prediction = predictions[0];
+
+  const outcomes = (
+    await query(
+      `SELECT * FROM "Outcome" WHERE "predictionId" = :id ORDER BY "createdAt" ASC`,
+      [{ name: "id", value: stringField(predictionId) }]
+    )
+  ).records;
+
+  if (outcomes.length === 0) {
     return NextResponse.json({ error: "Prediction has no outcomes" }, { status: 400 });
   }
 
@@ -46,7 +56,7 @@ export async function POST(request: Request) {
   try {
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
-    const outcomesDesc = prediction.outcomes
+    const outcomesDesc = outcomes
       .map((o) => `- "${o.label}" (current probability: ${o.probability ?? 0}%)`)
       .join("\n");
 
@@ -133,34 +143,57 @@ IMPORTANT: The outcome probabilities MUST sum to 100. Return ONLY valid JSON.`,
 
     // Update outcome probabilities in DB
     for (const updated of result.outcomes) {
-      const outcome = prediction.outcomes.find((o) => o.label === updated.label);
+      const outcome = outcomes.find((o) => o.label === updated.label);
       if (outcome) {
-        await prisma.outcome.update({
-          where: { id: outcome.id },
-          data: { probability: updated.probability },
-        });
+        await query(
+          `UPDATE "Outcome" SET "probability" = :probability, "updatedAt" = :now WHERE "id" = :id`,
+          [
+            { name: "probability", value: { doubleValue: updated.probability } },
+            { name: "now", value: stringField(new Date().toISOString()) },
+            { name: "id", value: stringField(outcome.id as string) },
+          ]
+        );
       }
     }
 
     // Upsert game theory model
-    await prisma.gameTheoryModel.upsert({
-      where: { predictionId: prediction.id },
-      update: {
-        players: JSON.stringify(result.players),
-        payoffMatrix: JSON.stringify(result.payoffMatrix),
-        nashEquilibria: JSON.stringify(result.nashEquilibria),
-        dominantStrategies: JSON.stringify(result.dominantStrategies),
-        analysis: result.analysis,
-      },
-      create: {
-        predictionId: prediction.id,
-        players: JSON.stringify(result.players),
-        payoffMatrix: JSON.stringify(result.payoffMatrix),
-        nashEquilibria: JSON.stringify(result.nashEquilibria),
-        dominantStrategies: JSON.stringify(result.dominantStrategies),
-        analysis: result.analysis,
-      },
-    });
+    const existingModel = (
+      await query(
+        `SELECT * FROM "GameTheoryModel" WHERE "predictionId" = :predictionId`,
+        [{ name: "predictionId", value: stringField(predictionId) }]
+      )
+    ).records;
+
+    const now = new Date().toISOString();
+    if (existingModel.length > 0) {
+      await query(
+        `UPDATE "GameTheoryModel" SET "players" = :players, "payoffMatrix" = :payoffMatrix, "nashEquilibria" = :nashEquilibria, "dominantStrategies" = :dominantStrategies, "analysis" = :analysis, "updatedAt" = :now WHERE "predictionId" = :predictionId`,
+        [
+          { name: "players", value: stringField(JSON.stringify(result.players)) },
+          { name: "payoffMatrix", value: stringField(JSON.stringify(result.payoffMatrix)) },
+          { name: "nashEquilibria", value: stringField(JSON.stringify(result.nashEquilibria)) },
+          { name: "dominantStrategies", value: stringField(JSON.stringify(result.dominantStrategies)) },
+          { name: "analysis", value: stringField(result.analysis) },
+          { name: "now", value: stringField(now) },
+          { name: "predictionId", value: stringField(predictionId) },
+        ]
+      );
+    } else {
+      await query(
+        `INSERT INTO "GameTheoryModel" ("id", "predictionId", "players", "payoffMatrix", "nashEquilibria", "dominantStrategies", "analysis", "createdAt", "updatedAt")
+         VALUES (:id, :predictionId, :players, :payoffMatrix, :nashEquilibria, :dominantStrategies, :analysis, :now, :now)`,
+        [
+          { name: "id", value: stringField(crypto.randomUUID()) },
+          { name: "predictionId", value: stringField(predictionId) },
+          { name: "players", value: stringField(JSON.stringify(result.players)) },
+          { name: "payoffMatrix", value: stringField(JSON.stringify(result.payoffMatrix)) },
+          { name: "nashEquilibria", value: stringField(JSON.stringify(result.nashEquilibria)) },
+          { name: "dominantStrategies", value: stringField(JSON.stringify(result.dominantStrategies)) },
+          { name: "analysis", value: stringField(result.analysis) },
+          { name: "now", value: stringField(now) },
+        ]
+      );
+    }
 
     return NextResponse.json({
       analysis: result.analysis,

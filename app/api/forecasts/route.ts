@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { query, stringField, numberOrNull, stringOrNull } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 // GET /api/forecasts?predictionId=xxx (optional filter)
@@ -15,18 +15,40 @@ export async function GET(request: Request) {
   const predictionId = searchParams.get("predictionId");
 
   try {
-    const where: { owner: string; predictionId?: string } = {
-      owner: user.sub,
-    };
+    let forecasts;
     if (predictionId) {
-      where.predictionId = predictionId;
+      forecasts = (
+        await query(
+          `SELECT f.*, row_to_json(o.*) as "outcome"
+           FROM "Forecast" f
+           JOIN "Outcome" o ON f."outcomeId" = o."id"
+           WHERE f."owner" = :owner AND f."predictionId" = :predictionId
+           ORDER BY f."createdAt" DESC`,
+          [
+            { name: "owner", value: stringField(user.sub) },
+            { name: "predictionId", value: stringField(predictionId) },
+          ]
+        )
+      ).records;
+    } else {
+      forecasts = (
+        await query(
+          `SELECT f.*, row_to_json(o.*) as "outcome"
+           FROM "Forecast" f
+           JOIN "Outcome" o ON f."outcomeId" = o."id"
+           WHERE f."owner" = :owner
+           ORDER BY f."createdAt" DESC`,
+          [{ name: "owner", value: stringField(user.sub) }]
+        )
+      ).records;
     }
 
-    const forecasts = await prisma.forecast.findMany({
-      where,
-      include: { outcome: true },
-      orderBy: { createdAt: "desc" },
-    });
+    // Parse the outcome JSON string from row_to_json
+    for (const f of forecasts) {
+      if (typeof f.outcome === "string") {
+        f.outcome = JSON.parse(f.outcome);
+      }
+    }
 
     return NextResponse.json(forecasts);
   } catch (error) {
@@ -58,25 +80,61 @@ export async function POST(request: Request) {
       );
     }
 
-    const forecast = await prisma.forecast.upsert({
-      where: {
-        owner_outcomeId: {
-          owner: user.sub,
-          outcomeId,
-        },
-      },
-      update: {
-        confidence,
-        reasoning: reasoning ?? null,
-      },
-      create: {
+    const now = new Date().toISOString();
+
+    // Check if forecast exists for this owner+outcome
+    const existing = (
+      await query(
+        `SELECT * FROM "Forecast" WHERE "owner" = :owner AND "outcomeId" = :outcomeId`,
+        [
+          { name: "owner", value: stringField(user.sub) },
+          { name: "outcomeId", value: stringField(outcomeId) },
+        ]
+      )
+    ).records;
+
+    let forecast;
+    if (existing.length > 0) {
+      // Update
+      await query(
+        `UPDATE "Forecast" SET "confidence" = :confidence, "reasoning" = :reasoning, "updatedAt" = :now
+         WHERE "owner" = :owner AND "outcomeId" = :outcomeId`,
+        [
+          { name: "confidence", value: { doubleValue: confidence } },
+          { name: "reasoning", value: stringOrNull(reasoning) },
+          { name: "now", value: stringField(now) },
+          { name: "owner", value: stringField(user.sub) },
+          { name: "outcomeId", value: stringField(outcomeId) },
+        ]
+      );
+      forecast = { ...existing[0], confidence, reasoning: reasoning ?? null, updatedAt: now };
+    } else {
+      // Insert
+      const id = crypto.randomUUID();
+      await query(
+        `INSERT INTO "Forecast" ("id", "predictionId", "outcomeId", "confidence", "reasoning", "owner", "createdAt", "updatedAt")
+         VALUES (:id, :predictionId, :outcomeId, :confidence, :reasoning, :owner, :now, :now)`,
+        [
+          { name: "id", value: stringField(id) },
+          { name: "predictionId", value: stringField(predictionId) },
+          { name: "outcomeId", value: stringField(outcomeId) },
+          { name: "confidence", value: { doubleValue: confidence } },
+          { name: "reasoning", value: stringOrNull(reasoning) },
+          { name: "owner", value: stringField(user.sub) },
+          { name: "now", value: stringField(now) },
+        ]
+      );
+      forecast = {
+        id,
         predictionId,
         outcomeId,
         confidence,
         reasoning: reasoning ?? null,
         owner: user.sub,
-      },
-    });
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
 
     return NextResponse.json(forecast, { status: 201 });
   } catch (error) {

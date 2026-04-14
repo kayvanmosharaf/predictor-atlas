@@ -14,7 +14,6 @@ frontend:
         - npm install
     build:
       commands:
-        - npx prisma generate
         - npm run build
   artifacts:
     baseDirectory: .next

@@ -1,15 +1,34 @@
-import { PrismaClient } from "../app/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  RDSDataClient,
+  ExecuteStatementCommand,
+} from "@aws-sdk/client-rds-data";
 import "dotenv/config";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
+const client = new RDSDataClient({ region: process.env.AWS_REGION || "us-east-2" });
+const resourceArn = process.env.AURORA_CLUSTER_ARN!;
+const secretArn = process.env.AURORA_SECRET_ARN!;
+const database = "predictoratlas";
+
+async function sql(
+  sqlStr: string,
+  parameters?: { name: string; value: Record<string, unknown> }[]
+) {
+  const command = new ExecuteStatementCommand({
+    resourceArn,
+    secretArn,
+    database,
+    sql: sqlStr,
+    parameters: parameters as ExecuteStatementCommand["input"]["parameters"],
+    includeResultMetadata: true,
+  });
+  return client.send(command);
+}
 
 const seedPredictions = [
   {
     title: "2026 US Midterm Elections",
-    category: "POLITICS" as const,
-    status: "OPEN" as const,
+    category: "POLITICS",
+    status: "OPEN",
     description:
       "Which party will control the House after the 2026 midterms? Game theory analysis of campaign strategies, voter turnout models, and redistricting effects.",
     outcomes: [
@@ -20,8 +39,8 @@ const seedPredictions = [
   },
   {
     title: "Global Recession Probability 2026-2027",
-    category: "ECONOMICS" as const,
-    status: "OPEN" as const,
+    category: "ECONOMICS",
+    status: "OPEN",
     description:
       "Will major economies enter recession by end of 2027? Strategic analysis of central bank policies, trade dynamics, and fiscal responses.",
     outcomes: [
@@ -33,8 +52,8 @@ const seedPredictions = [
   },
   {
     title: "NBA Finals 2026 Champion",
-    category: "SPORTS" as const,
-    status: "OPEN" as const,
+    category: "SPORTS",
+    status: "OPEN",
     description:
       "Predicting the 2026 NBA champion using game theory models of playoff matchups, coaching strategies, and player interactions.",
     outcomes: [
@@ -45,8 +64,8 @@ const seedPredictions = [
   },
   {
     title: "EU-China Trade Negotiations Outcome",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
     description:
       "How will EU-China trade negotiations resolve? Nash equilibrium analysis of tariff strategies, market access demands, and diplomatic leverage.",
     outcomes: [
@@ -58,8 +77,8 @@ const seedPredictions = [
   },
   {
     title: "US-Iran Military Conflict Probability",
-    category: "GEOPOLITICS" as const,
-    status: "OPEN" as const,
+    category: "GEOPOLITICS",
+    status: "OPEN",
     description:
       "What is the likelihood of a direct US-Iran military confrontation by 2027? Game theory analysis of escalation dynamics, nuclear negotiations, proxy conflicts, and strategic deterrence models.",
     outcomes: [
@@ -72,8 +91,8 @@ const seedPredictions = [
   },
   {
     title: "AI Regulation Framework — US vs EU",
-    category: "TECHNOLOGY" as const,
-    status: "OPEN" as const,
+    category: "TECHNOLOGY",
+    status: "OPEN",
     description:
       "Will the US adopt EU-style AI regulation or diverge? Strategic analysis of industry lobbying, public pressure, and international competition dynamics.",
     outcomes: [
@@ -89,37 +108,49 @@ async function seed() {
   console.log("Seeding predictions and outcomes...\n");
 
   for (const p of seedPredictions) {
-    // Skip if prediction with same title already exists
-    const existing = await prisma.prediction.findFirst({
-      where: { title: p.title },
-    });
-    if (existing) {
+    // Check if prediction with same title already exists
+    const existing = await sql(
+      `SELECT "id" FROM "Prediction" WHERE "title" = :title LIMIT 1`,
+      [{ name: "title", value: { stringValue: p.title } }]
+    );
+
+    if (existing.records && existing.records.length > 0) {
       console.log(`Skipped (already exists): ${p.title}`);
       continue;
     }
 
-    const prediction = await prisma.prediction.create({
-      data: {
-        title: p.title,
-        description: p.description,
-        category: p.category,
-        status: p.status,
-        visibility: "PUBLIC",
-        resolutionDate: p.resolutionDate,
-        owner: "seed-script",
-        outcomes: {
-          create: p.outcomes.map((o) => ({
-            label: o.label,
-            probability: o.probability,
-            owner: "seed-script",
-          })),
-        },
-      },
-      include: { outcomes: true },
-    });
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
 
-    console.log(`Created prediction: ${prediction.title} (${prediction.id})`);
-    for (const o of prediction.outcomes) {
+    await sql(
+      `INSERT INTO "Prediction" ("id", "title", "description", "category", "status", "visibility", "resolutionDate", "owner", "createdAt", "updatedAt")
+       VALUES (:id, :title, :description, :category, :status, 'PUBLIC', :resolutionDate, 'seed-script', :now, :now)`,
+      [
+        { name: "id", value: { stringValue: id } },
+        { name: "title", value: { stringValue: p.title } },
+        { name: "description", value: { stringValue: p.description } },
+        { name: "category", value: { stringValue: p.category } },
+        { name: "status", value: { stringValue: p.status } },
+        { name: "resolutionDate", value: { stringValue: p.resolutionDate } },
+        { name: "now", value: { stringValue: now } },
+      ]
+    );
+
+    console.log(`Created prediction: ${p.title} (${id})`);
+
+    for (const o of p.outcomes) {
+      const oid = crypto.randomUUID();
+      await sql(
+        `INSERT INTO "Outcome" ("id", "predictionId", "label", "probability", "owner", "createdAt", "updatedAt")
+         VALUES (:id, :predictionId, :label, :probability, 'seed-script', :now, :now)`,
+        [
+          { name: "id", value: { stringValue: oid } },
+          { name: "predictionId", value: { stringValue: id } },
+          { name: "label", value: { stringValue: o.label } },
+          { name: "probability", value: { doubleValue: o.probability } },
+          { name: "now", value: { stringValue: now } },
+        ]
+      );
       console.log(`  Created outcome: ${o.label} (${o.probability}%)`);
     }
     console.log();
@@ -128,6 +159,4 @@ async function seed() {
   console.log("Seed complete!");
 }
 
-seed()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+seed().catch(console.error);

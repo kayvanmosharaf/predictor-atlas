@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { query, stringField, numberOrNull } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 
 interface SeedOutcome {
@@ -37,11 +37,10 @@ export async function POST(request: Request) {
     }
 
     // Check for existing titles to skip duplicates
-    const existingTitles = new Set(
-      (await prisma.prediction.findMany({ select: { title: true } })).map(
-        (p) => p.title
-      )
-    );
+    const existingResult = (
+      await query(`SELECT "title" FROM "Prediction"`)
+    ).records;
+    const existingTitles = new Set(existingResult.map((p) => p.title as string));
 
     let created = 0;
     let skipped = 0;
@@ -56,24 +55,51 @@ export async function POST(request: Request) {
         continue;
       }
 
-      await prisma.prediction.create({
-        data: {
-          title: p.title,
-          description: p.description,
-          category: (p.category as "POLITICS" | "ECONOMICS" | "SPORTS" | "GEOPOLITICS" | "TECHNOLOGY" | "OTHER") || "OTHER",
-          status: (p.status as "OPEN" | "CLOSED" | "RESOLVED") || "OPEN",
-          visibility: (p.visibility as "PRIVATE" | "PUBLIC") || "PUBLIC",
-          resolutionDate: p.resolutionDate || null,
-          owner: user.sub,
-          outcomes: {
-            create: p.outcomes.map((o) => ({
-              label: o.label,
-              probability: o.probability ?? null,
-              owner: user.sub,
-            })),
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      await query(
+        `INSERT INTO "Prediction" ("id", "title", "description", "category", "status", "visibility", "resolutionDate", "owner", "createdAt", "updatedAt")
+         VALUES (:id, :title, :description, :category, :status, :visibility, :resolutionDate, :owner, :now, :now)`,
+        [
+          { name: "id", value: stringField(id) },
+          { name: "title", value: stringField(p.title) },
+          { name: "description", value: stringField(p.description) },
+          {
+            name: "category",
+            value: stringField(p.category || "OTHER"),
           },
-        },
-      });
+          { name: "status", value: stringField(p.status || "OPEN") },
+          {
+            name: "visibility",
+            value: stringField(p.visibility || "PUBLIC"),
+          },
+          {
+            name: "resolutionDate",
+            value: p.resolutionDate
+              ? stringField(p.resolutionDate)
+              : { isNull: true },
+          },
+          { name: "owner", value: stringField(user.sub) },
+          { name: "now", value: stringField(now) },
+        ]
+      );
+
+      for (const o of p.outcomes) {
+        await query(
+          `INSERT INTO "Outcome" ("id", "predictionId", "label", "probability", "owner", "createdAt", "updatedAt")
+           VALUES (:id, :predictionId, :label, :probability, :owner, :now, :now)`,
+          [
+            { name: "id", value: stringField(crypto.randomUUID()) },
+            { name: "predictionId", value: stringField(id) },
+            { name: "label", value: stringField(o.label) },
+            { name: "probability", value: numberOrNull(o.probability) },
+            { name: "owner", value: stringField(user.sub) },
+            { name: "now", value: stringField(now) },
+          ]
+        );
+      }
+
       created++;
     }
 
