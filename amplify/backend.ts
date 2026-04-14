@@ -22,30 +22,15 @@ const vpc = new ec2.Vpc(auroraStack, "AuroraVpc", {
   natGateways: 0,
 });
 
-const dbSecurityGroup = new ec2.SecurityGroup(auroraStack, "AuroraSecurityGroup", {
-  vpc,
-  description: "Allow PostgreSQL access to Aurora cluster",
-  allowAllOutbound: true,
-});
-
-dbSecurityGroup.addIngressRule(
-  ec2.Peer.anyIpv4(),
-  ec2.Port.tcp(5432),
-  "Allow PostgreSQL from anywhere (credentials required)"
-);
-
 const dbCluster = new rds.DatabaseCluster(auroraStack, "AuroraCluster", {
   engine: rds.DatabaseClusterEngine.auroraPostgres({
     version: rds.AuroraPostgresEngineVersion.VER_15_8,
   }),
   serverlessV2MinCapacity: 0.5,
   serverlessV2MaxCapacity: 4,
-  writer: rds.ClusterInstance.serverlessV2("writer", {
-    publiclyAccessible: true,
-  }),
+  writer: rds.ClusterInstance.serverlessV2("writer"),
   vpc,
-  vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-  securityGroups: [dbSecurityGroup],
+  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
   defaultDatabaseName: "predictoratlas",
   enableDataApi: true,
   removalPolicy: cdk.RemovalPolicy.RETAIN,
