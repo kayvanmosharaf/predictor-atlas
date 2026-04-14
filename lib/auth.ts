@@ -1,13 +1,18 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
+import amplifyOutputs from "@/amplify_outputs.json";
 
 let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 
 function getVerifier() {
   if (!verifier) {
+    const userPoolId =
+      process.env.COGNITO_USER_POOL_ID || amplifyOutputs.auth.user_pool_id;
+    const clientId =
+      process.env.COGNITO_CLIENT_ID || amplifyOutputs.auth.user_pool_client_id;
     verifier = CognitoJwtVerifier.create({
-      userPoolId: process.env.COGNITO_USER_POOL_ID!,
+      userPoolId,
       tokenUse: "access",
-      clientId: process.env.COGNITO_CLIENT_ID!,
+      clientId,
     });
   }
   return verifier;
