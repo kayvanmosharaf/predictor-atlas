@@ -76,9 +76,7 @@ export async function POST(request: Request) {
           },
           {
             name: "resolutionDate",
-            value: p.resolutionDate
-              ? stringField(p.resolutionDate)
-              : { isNull: true },
+            value: p.resolutionDate ?? null,
           },
           { name: "owner", value: stringField(user.sub) },
           { name: "now", value: stringField(now) },

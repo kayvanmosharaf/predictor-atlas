@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { query, stringField } from "@/lib/db";
+import { query, stringField, type ParamValue } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import type { Field } from "@aws-sdk/client-rds-data";
 
 // PATCH /api/outcomes/[id]
 export async function PATCH(
@@ -36,7 +35,7 @@ export async function PATCH(
     const { label, probability, nashEquilibriumScore } = body;
 
     const sets: string[] = [];
-    const params_list: { name: string; value: Field }[] = [
+    const params_list: { name: string; value: ParamValue }[] = [
       { name: "id", value: stringField(id) },
     ];
 
@@ -48,17 +47,14 @@ export async function PATCH(
       sets.push(`"probability" = :probability`);
       params_list.push({
         name: "probability",
-        value: probability != null ? { doubleValue: probability } : { isNull: true },
+        value: probability ?? null,
       });
     }
     if (nashEquilibriumScore !== undefined) {
       sets.push(`"nashEquilibriumScore" = :nashScore`);
       params_list.push({
         name: "nashScore",
-        value:
-          nashEquilibriumScore != null
-            ? { doubleValue: nashEquilibriumScore }
-            : { isNull: true },
+        value: nashEquilibriumScore ?? null,
       });
     }
 

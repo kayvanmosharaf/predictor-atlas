@@ -2,34 +2,35 @@ import React from "react";
 import { render, RenderOptions } from "@testing-library/react";
 
 // Access global mocks set up in jest.setup.ts
-const mockUseAuthenticator = (globalThis as Record<string, unknown>).__mockUseAuthenticator as jest.Mock;
+const mockUseAuth = (globalThis as Record<string, unknown>).__mockUseAuth as jest.Mock;
 
 /**
  * Set mock authentication state
  */
 export function setMockAuthState(state: "authenticated" | "unauthenticated") {
-  mockUseAuthenticator.mockReturnValue({
+  mockUseAuth.mockReturnValue({
     authStatus: state,
     user: state === "authenticated"
-      ? { username: "testuser", userId: "test-user-id" }
-      : undefined,
+      ? { id: "test-user-id", email: "test@example.com" }
+      : null,
     signOut: (globalThis as Record<string, unknown>).__mockSignOut as jest.Mock,
   });
 }
 
 /**
- * Set mock admin state by configuring fetchAuthSession
+ * Set mock admin state by configuring the Supabase getUser mock
  */
 export function setMockAdminState(isAdmin: boolean) {
-  const { fetchAuthSession } = require("aws-amplify/auth");
-  (fetchAuthSession as jest.Mock).mockResolvedValue({
-    tokens: {
-      accessToken: {
-        payload: {
-          "cognito:groups": isAdmin ? ["admin"] : [],
-        },
+  const mockGetUser = (globalThis as Record<string, unknown>).__mockGetUser as jest.Mock;
+  mockGetUser.mockResolvedValue({
+    data: {
+      user: {
+        id: "test-user-id",
+        email: "test@example.com",
+        app_metadata: { role: isAdmin ? "admin" : undefined },
       },
     },
+    error: null,
   });
 }
 

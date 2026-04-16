@@ -1,27 +1,16 @@
-import {
-  RDSDataClient,
-  ExecuteStatementCommand,
-} from "@aws-sdk/client-rds-data";
+import pg from "pg";
 import "dotenv/config";
 
-const client = new RDSDataClient({ region: process.env.AWS_REGION || "us-east-2" });
-const resourceArn = process.env.AURORA_CLUSTER_ARN!;
-const secretArn = process.env.AURORA_SECRET_ARN!;
-const database = "predictoratlas";
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 async function sql(
   sqlStr: string,
-  parameters?: { name: string; value: Record<string, unknown> }[]
+  values?: unknown[]
 ) {
-  const command = new ExecuteStatementCommand({
-    resourceArn,
-    secretArn,
-    database,
-    sql: sqlStr,
-    parameters: parameters as ExecuteStatementCommand["input"]["parameters"],
-    includeResultMetadata: true,
-  });
-  return client.send(command);
+  const result = await pool.query(sqlStr, values);
+  return result;
 }
 
 const seedPredictions = [
@@ -110,11 +99,11 @@ async function seed() {
   for (const p of seedPredictions) {
     // Check if prediction with same title already exists
     const existing = await sql(
-      `SELECT "id" FROM "Prediction" WHERE "title" = :title LIMIT 1`,
-      [{ name: "title", value: { stringValue: p.title } }]
+      `SELECT "id" FROM "Prediction" WHERE "title" = $1 LIMIT 1`,
+      [p.title]
     );
 
-    if (existing.records && existing.records.length > 0) {
+    if (existing.rows.length > 0) {
       console.log(`Skipped (already exists): ${p.title}`);
       continue;
     }
@@ -124,16 +113,8 @@ async function seed() {
 
     await sql(
       `INSERT INTO "Prediction" ("id", "title", "description", "category", "status", "visibility", "resolutionDate", "owner", "createdAt", "updatedAt")
-       VALUES (:id, :title, :description, :category, :status, 'PUBLIC', :resolutionDate, 'seed-script', :now, :now)`,
-      [
-        { name: "id", value: { stringValue: id } },
-        { name: "title", value: { stringValue: p.title } },
-        { name: "description", value: { stringValue: p.description } },
-        { name: "category", value: { stringValue: p.category } },
-        { name: "status", value: { stringValue: p.status } },
-        { name: "resolutionDate", value: { stringValue: p.resolutionDate } },
-        { name: "now", value: { stringValue: now } },
-      ]
+       VALUES ($1, $2, $3, $4, $5, 'PUBLIC', $6, 'seed-script', $7, $7)`,
+      [id, p.title, p.description, p.category, p.status, p.resolutionDate, now]
     );
 
     console.log(`Created prediction: ${p.title} (${id})`);
@@ -142,14 +123,8 @@ async function seed() {
       const oid = crypto.randomUUID();
       await sql(
         `INSERT INTO "Outcome" ("id", "predictionId", "label", "probability", "owner", "createdAt", "updatedAt")
-         VALUES (:id, :predictionId, :label, :probability, 'seed-script', :now, :now)`,
-        [
-          { name: "id", value: { stringValue: oid } },
-          { name: "predictionId", value: { stringValue: id } },
-          { name: "label", value: { stringValue: o.label } },
-          { name: "probability", value: { doubleValue: o.probability } },
-          { name: "now", value: { stringValue: now } },
-        ]
+         VALUES ($1, $2, $3, $4, 'seed-script', $5, $5)`,
+        [oid, id, o.label, o.probability, now]
       );
       console.log(`  Created outcome: ${o.label} (${o.probability}%)`);
     }
@@ -157,6 +132,7 @@ async function seed() {
   }
 
   console.log("Seed complete!");
+  await pool.end();
 }
 
 seed().catch(console.error);

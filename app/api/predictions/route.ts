@@ -140,10 +140,7 @@ export async function POST(request: Request) {
             { name: "label", value: stringField(o.label.trim()) },
             {
               name: "probability",
-              value:
-                o.probability != null
-                  ? { doubleValue: o.probability }
-                  : { isNull: true },
+              value: o.probability ?? null,
             },
             { name: "owner", value: stringField(user.sub) },
             { name: "now", value: stringField(now) },

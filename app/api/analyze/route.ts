@@ -148,7 +148,7 @@ IMPORTANT: The outcome probabilities MUST sum to 100. Return ONLY valid JSON.`,
         await query(
           `UPDATE "Outcome" SET "probability" = :probability, "updatedAt" = :now WHERE "id" = :id`,
           [
-            { name: "probability", value: { doubleValue: updated.probability } },
+            { name: "probability", value: updated.probability },
             { name: "now", value: stringField(new Date().toISOString()) },
             { name: "id", value: stringField(outcome.id as string) },
           ]

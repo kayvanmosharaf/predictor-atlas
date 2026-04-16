@@ -1,43 +1,39 @@
 import "@testing-library/jest-dom";
 
-// Mock amplify_outputs.json
-jest.mock("@/amplify_outputs.json", () => ({}), { virtual: true });
+// Mock the Supabase browser client
+const mockGetUser = jest.fn().mockResolvedValue({
+  data: { user: null },
+  error: null,
+});
+const mockSignOut = jest.fn().mockResolvedValue({});
+const mockOnAuthStateChange = jest.fn().mockReturnValue({
+  data: { subscription: { unsubscribe: jest.fn() } },
+});
 
-// Mock aws-amplify modules
-jest.mock("aws-amplify", () => ({
-  Amplify: { configure: jest.fn() },
+jest.mock("@/lib/supabase/client", () => ({
+  createClient: jest.fn(() => ({
+    auth: {
+      getUser: mockGetUser,
+      signOut: mockSignOut,
+      onAuthStateChange: mockOnAuthStateChange,
+    },
+  })),
 }));
 
-jest.mock("aws-amplify/auth", () => ({
-  fetchAuthSession: jest.fn().mockResolvedValue({
-    tokens: {
-      accessToken: {
-        payload: { "cognito:groups": [] },
-      },
-    },
-  }),
-  signIn: jest.fn(),
-  signOut: jest.fn(),
-  signUp: jest.fn(),
+// Mock the useAuth hook
+const mockUseAuth = jest.fn(() => ({
+  authStatus: "authenticated" as const,
+  user: { id: "test-user-id", email: "test@example.com" },
+  signOut: mockSignOut,
+}));
+
+jest.mock("@/app/hooks/useAuth", () => ({
+  useAuth: mockUseAuth,
 }));
 
 // Mock the API client used by all pages
 jest.mock("@/lib/api-client", () => ({
   apiFetch: jest.fn().mockResolvedValue([]),
-}));
-
-// Mock @aws-amplify/ui-react
-const mockSignOut = jest.fn();
-const mockUseAuthenticator = jest.fn(() => ({
-  authStatus: "authenticated",
-  user: { username: "testuser", userId: "test-user-id" },
-  signOut: mockSignOut,
-}));
-
-jest.mock("@aws-amplify/ui-react", () => ({
-  useAuthenticator: mockUseAuthenticator,
-  Authenticator: ({ children }: { children?: React.ReactNode }) => children ?? null,
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock next/navigation
@@ -64,5 +60,6 @@ jest.mock("next/link", () => {
 });
 
 // Export mocks for test files to access
-(globalThis as Record<string, unknown>).__mockUseAuthenticator = mockUseAuthenticator;
+(globalThis as Record<string, unknown>).__mockUseAuth = mockUseAuth;
 (globalThis as Record<string, unknown>).__mockSignOut = mockSignOut;
+(globalThis as Record<string, unknown>).__mockGetUser = mockGetUser;

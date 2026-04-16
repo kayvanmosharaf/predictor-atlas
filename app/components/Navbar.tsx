@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useAuthenticator } from "@aws-amplify/ui-react";
 import styles from "./Navbar.module.css";
+import { useAuth } from "../hooks/useAuth";
 import { useAdmin } from "../hooks/useAdmin";
 import AuthModal from "./AuthModal";
 
@@ -17,7 +17,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { authStatus, signOut } = useAuthenticator();
+  const { authStatus, signOut } = useAuth();
   const { isAdmin } = useAdmin();
 
   // Close menu on route change

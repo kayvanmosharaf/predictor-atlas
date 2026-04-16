@@ -1,15 +1,6 @@
-"use client";
-
 import { Inter } from "next/font/google";
 import "./globals.css";
-
-import { Authenticator } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 import Navbar from "./components/Navbar";
-import { Amplify } from "aws-amplify";
-import outputs from "@/amplify_outputs.json";
-
-Amplify.configure(outputs);
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,10 +21,8 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        <Authenticator.Provider>
-          <Navbar />
-          <main style={{ paddingTop: "56px" }}>{children}</main>
-        </Authenticator.Provider>
+        <Navbar />
+        <main style={{ paddingTop: "56px" }}>{children}</main>
       </body>
     </html>
   );

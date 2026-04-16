@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, fireEvent } from "../utils/test-utils";
 import Navbar from "@/app/components/Navbar";
 
-const mockUseAuthenticator = (globalThis as Record<string, unknown>).__mockUseAuthenticator as jest.Mock;
+const mockUseAuth = (globalThis as Record<string, unknown>).__mockUseAuth as jest.Mock;
 const mockSignOut = (globalThis as Record<string, unknown>).__mockSignOut as jest.Mock;
 
 // Mock useAdmin
@@ -22,9 +22,9 @@ import { useAdmin } from "@/app/hooks/useAdmin";
 describe("Navbar", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "authenticated",
-      user: { username: "testuser" },
+      user: { id: "test-user-id", email: "test@example.com" },
       signOut: mockSignOut,
     });
     (useAdmin as jest.Mock).mockReturnValue({ isAdmin: false, loading: false });
@@ -52,9 +52,9 @@ describe("Navbar", () => {
   });
 
   it("shows Sign In button when unauthenticated", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "unauthenticated",
-      user: undefined,
+      user: null,
       signOut: mockSignOut,
     });
     render(<Navbar />);
@@ -62,9 +62,9 @@ describe("Navbar", () => {
   });
 
   it("does not show Dashboard link when unauthenticated", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "unauthenticated",
-      user: undefined,
+      user: null,
       signOut: mockSignOut,
     });
     render(<Navbar />);
@@ -89,9 +89,9 @@ describe("Navbar", () => {
   });
 
   it("opens AuthModal when Sign In is clicked", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "unauthenticated",
-      user: undefined,
+      user: null,
       signOut: mockSignOut,
     });
     render(<Navbar />);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAuthenticator } from "@aws-amplify/ui-react";
+import { useAuth } from "../hooks/useAuth";
 import { useAdmin } from "../hooks/useAdmin";
 import { apiFetch } from "@/lib/api-client";
 import PredictionForm from "../components/PredictionForm";
@@ -248,7 +248,7 @@ const seedPredictions = [
 ];
 
 export default function AdminPage() {
-  const { authStatus } = useAuthenticator();
+  const { authStatus } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);

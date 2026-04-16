@@ -93,7 +93,7 @@ export async function PATCH(
       body;
 
     const sets: string[] = [];
-    const params_list: { name: string; value: import("@aws-sdk/client-rds-data").Field }[] = [
+    const params_list: { name: string; value: import("@/lib/db").ParamValue }[] = [
       { name: "id", value: stringField(id) },
     ];
 
@@ -121,7 +121,7 @@ export async function PATCH(
       sets.push(`"resolutionDate" = :resolutionDate`);
       params_list.push({
         name: "resolutionDate",
-        value: resolutionDate ? stringField(resolutionDate) : { isNull: true },
+        value: resolutionDate ?? null,
       });
     }
 

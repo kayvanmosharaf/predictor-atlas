@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         `UPDATE "Forecast" SET "confidence" = :confidence, "reasoning" = :reasoning, "updatedAt" = :now
          WHERE "owner" = :owner AND "outcomeId" = :outcomeId`,
         [
-          { name: "confidence", value: { doubleValue: confidence } },
+          { name: "confidence", value: confidence },
           { name: "reasoning", value: stringOrNull(reasoning) },
           { name: "now", value: stringField(now) },
           { name: "owner", value: stringField(user.sub) },
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
           { name: "id", value: stringField(id) },
           { name: "predictionId", value: stringField(predictionId) },
           { name: "outcomeId", value: stringField(outcomeId) },
-          { name: "confidence", value: { doubleValue: confidence } },
+          { name: "confidence", value: confidence },
           { name: "reasoning", value: stringOrNull(reasoning) },
           { name: "owner", value: stringField(user.sub) },
           { name: "now", value: stringField(now) },

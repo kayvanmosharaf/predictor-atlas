@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, fireEvent } from "../utils/test-utils";
 import DashboardPage from "@/app/dashboard/page";
 
-const mockUseAuthenticator = (globalThis as Record<string, unknown>).__mockUseAuthenticator as jest.Mock;
+const mockUseAuth = (globalThis as Record<string, unknown>).__mockUseAuth as jest.Mock;
 const mockSignOut = (globalThis as Record<string, unknown>).__mockSignOut as jest.Mock;
 
 // Mock AuthModal
@@ -18,9 +18,9 @@ describe("DashboardPage", () => {
   });
 
   it("shows dashboard content when authenticated", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "authenticated",
-      user: { username: "testuser", signInDetails: { loginId: "test@example.com" } },
+      user: { id: "test-user-id", email: "test@example.com" },
       signOut: mockSignOut,
     });
     render(<DashboardPage />);
@@ -32,9 +32,9 @@ describe("DashboardPage", () => {
   });
 
   it("shows sign-in prompt when unauthenticated", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "unauthenticated",
-      user: undefined,
+      user: null,
       signOut: mockSignOut,
     });
     render(<DashboardPage />);
@@ -42,9 +42,9 @@ describe("DashboardPage", () => {
   });
 
   it("opens AuthModal from sign-in prompt", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "unauthenticated",
-      user: undefined,
+      user: null,
       signOut: mockSignOut,
     });
     render(<DashboardPage />);
@@ -53,9 +53,9 @@ describe("DashboardPage", () => {
   });
 
   it("calls signOut when Sign Out is clicked", () => {
-    mockUseAuthenticator.mockReturnValue({
+    mockUseAuth.mockReturnValue({
       authStatus: "authenticated",
-      user: { username: "testuser", signInDetails: { loginId: "test@example.com" } },
+      user: { id: "test-user-id", email: "test@example.com" },
       signOut: mockSignOut,
     });
     render(<DashboardPage />);

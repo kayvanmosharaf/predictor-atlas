@@ -1,12 +1,12 @@
 "use client";
 
-import { useAuthenticator } from "@aws-amplify/ui-react";
+import { useAuth } from "../hooks/useAuth";
 import { useState } from "react";
 import styles from "./dashboard.module.css";
 import AuthModal from "../components/AuthModal";
 
 export default function DashboardPage() {
-  const { user, authStatus, signOut } = useAuthenticator();
+  const { user, authStatus, signOut } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   if (authStatus !== "authenticated") {
@@ -32,7 +32,7 @@ export default function DashboardPage() {
       <header className={styles.header}>
         <div>
           <h1>Dashboard</h1>
-          <p className={styles.email}>{user?.signInDetails?.loginId}</p>
+          <p className={styles.email}>{user?.email}</p>
         </div>
         <button onClick={signOut} className={styles.signOutBtn}>
           Sign Out

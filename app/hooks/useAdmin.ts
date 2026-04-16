@@ -1,33 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { createClient } from "@/lib/supabase/client";
 
 export function useAdmin() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { authStatus } = useAuthenticator();
 
   useEffect(() => {
-    async function checkAdmin() {
-      setLoading(true);
-      try {
-        if (authStatus !== "authenticated") {
-          setIsAdmin(false);
-          return;
-        }
-        const session = await fetchAuthSession();
-        const groups = (session.tokens?.accessToken?.payload?.["cognito:groups"] as string[] | undefined) ?? [];
-        setIsAdmin(groups.includes("admin"));
-      } catch {
-        setIsAdmin(false);
-      } finally {
-        setLoading(false);
-      }
-    }
-    checkAdmin();
-  }, [authStatus]);
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsAdmin(user?.app_metadata?.role === "admin");
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAdmin(session?.user?.app_metadata?.role === "admin");
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   return { isAdmin, loading };
 }

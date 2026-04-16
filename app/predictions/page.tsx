@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthenticator } from "@aws-amplify/ui-react";
+import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "@/lib/api-client";
 import AuthModal from "../components/AuthModal";
 import styles from "./predictions.module.css";
@@ -40,7 +40,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function PredictionsPage() {
-  const { authStatus } = useAuthenticator();
+  const { authStatus } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [activeForecast, setActiveForecast] = useState<string | null>(null);
   const [forecasts, setForecasts] = useState<Record<string, Record<string, number>>>({});

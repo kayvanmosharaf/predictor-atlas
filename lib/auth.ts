@@ -1,22 +1,4 @@
-import { CognitoJwtVerifier } from "aws-jwt-verify";
-import amplifyOutputs from "@/amplify_outputs.json";
-
-let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
-
-function getVerifier() {
-  if (!verifier) {
-    const userPoolId =
-      process.env.COGNITO_USER_POOL_ID || amplifyOutputs.auth.user_pool_id;
-    const clientId =
-      process.env.COGNITO_CLIENT_ID || amplifyOutputs.auth.user_pool_client_id;
-    verifier = CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: "access",
-      clientId,
-    });
-  }
-  return verifier;
-}
+import { createServerSupabaseClient } from "./supabase/server";
 
 export interface AuthUser {
   sub: string;
@@ -26,21 +8,23 @@ export interface AuthUser {
 }
 
 export async function authenticateRequest(
-  request: Request
+  _request: Request
 ): Promise<AuthUser | null> {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-
   try {
-    const token = authHeader.slice(7);
-    const payload = await getVerifier().verify(token);
-    const groups =
-      (payload["cognito:groups"] as string[] | undefined) ?? [];
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+    if (error || !user) return null;
+
+    const role = user.app_metadata?.role;
+    const groups = role === "admin" ? ["admin"] : [];
     return {
-      sub: payload.sub,
-      email: payload.email as string | undefined,
+      sub: user.id,
+      email: user.email,
       groups,
-      isAdmin: groups.includes("admin"),
+      isAdmin: role === "admin",
     };
   } catch {
     return null;
