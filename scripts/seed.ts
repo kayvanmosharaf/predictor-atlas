@@ -1,5 +1,9 @@
 import pg from "pg";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+// Load .env.local first (overrides), then .env as fallback
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
