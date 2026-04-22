@@ -3,11 +3,18 @@
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import styles from "./AuthModal.module.css";
 
 export default function AuthModal({ onClose }: { onClose: () => void }) {
   const supabase = createClient();
+  const [redirectTo, setRedirectTo] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setRedirectTo(
+      `${window.location.origin}/auth/callback?next=/auth/update-password`
+    );
+  }, []);
 
   useEffect(() => {
     const {
@@ -71,6 +78,7 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
             theme="dark"
             providers={[]}
             view="sign_in"
+            redirectTo={redirectTo}
           />
         </div>
       </div>
