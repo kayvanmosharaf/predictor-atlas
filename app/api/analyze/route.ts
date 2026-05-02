@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { query, stringField } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { anthropicErrorResponse } from "@/lib/forecast/anthropic-errors";
+import { getModelConfig } from "@/lib/forecast/model";
 
 interface AnalysisResult {
   outcomes: { label: string; probability: number }[];
@@ -20,7 +22,8 @@ export async function POST(request: Request) {
     return res as Response;
   }
 
-  const { predictionId } = await request.json();
+  const body = (await request.json()) as { predictionId?: string; force?: boolean };
+  const { predictionId, force = false } = body;
   if (!predictionId) {
     return NextResponse.json({ error: "predictionId is required" }, { status: 400 });
   }
@@ -48,6 +51,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Prediction has no outcomes" }, { status: 400 });
   }
 
+  const existingModel = (
+    await query(
+      `SELECT * FROM "GameTheoryModel" WHERE "predictionId" = :predictionId`,
+      [{ name: "predictionId", value: stringField(predictionId) }]
+    )
+  ).records;
+
+  if (!force && existingModel.length > 0) {
+    const cached = existingModel[0];
+    const ttlHours = Number(process.env.ANALYSIS_CACHE_TTL_HOURS ?? 6);
+    const ttlMs = ttlHours * 60 * 60 * 1000;
+    const modelTime = new Date(cached.updatedAt as string).getTime();
+    const predictionTime = new Date(prediction.updatedAt as string).getTime();
+    const age = Date.now() - modelTime;
+    if (modelTime > predictionTime && age < ttlMs) {
+      return NextResponse.json({
+        analysis: cached.analysis,
+        nashEquilibria: JSON.parse(cached.nashEquilibria as string),
+        dominantStrategies: JSON.parse(cached.dominantStrategies as string),
+        players: JSON.parse(cached.players as string),
+        cached: true,
+        cachedAt: cached.updatedAt,
+      });
+    }
+  }
+
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   if (!anthropicApiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 500 });
@@ -61,7 +90,7 @@ export async function POST(request: Request) {
       .join("\n");
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: getModelConfig().id,
       max_tokens: 8000,
       tools: [{ type: "web_search_20250305" as const, name: "web_search" as const, max_uses: 10 }],
       messages: [
@@ -157,13 +186,6 @@ IMPORTANT: The outcome probabilities MUST sum to 100. Return ONLY valid JSON.`,
     }
 
     // Upsert game theory model
-    const existingModel = (
-      await query(
-        `SELECT * FROM "GameTheoryModel" WHERE "predictionId" = :predictionId`,
-        [{ name: "predictionId", value: stringField(predictionId) }]
-      )
-    ).records;
-
     const now = new Date().toISOString();
     if (existingModel.length > 0) {
       await query(
@@ -199,9 +221,12 @@ IMPORTANT: The outcome probabilities MUST sum to 100. Return ONLY valid JSON.`,
       analysis: result.analysis,
       nashEquilibria: result.nashEquilibria,
       dominantStrategies: result.dominantStrategies,
+      players: result.players,
     });
   } catch (err) {
     console.error("Analysis failed:", err);
+    const anthropicResponse = anthropicErrorResponse(err);
+    if (anthropicResponse) return anthropicResponse;
     const message = err instanceof Error ? err.message : "Analysis failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

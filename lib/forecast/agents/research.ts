@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Playbook } from "../playbooks/types";
+import { computeCostUsd, getModelConfig } from "../model";
 
 export interface EvidenceCitation {
   url: string;
@@ -27,9 +28,6 @@ export interface PredictionContext {
   description: string;
   outcomes: { label: string; probability: number }[];
 }
-
-const SONNET_INPUT_USD_PER_MTOK = 3.0;
-const SONNET_OUTPUT_USD_PER_MTOK = 15.0;
 
 export async function runResearchAgent(
   prediction: PredictionContext,
@@ -86,8 +84,9 @@ ${prediction.outcomes.map((o) => `- ${o.label} (${o.probability}%)`).join("\n")}
 
 Run the research now and return the JSON.`;
 
+  const modelConfig = getModelConfig();
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: modelConfig.id,
     max_tokens: 8000,
     system: [
       {
@@ -132,10 +131,7 @@ Run the research now and return the JSON.`;
 
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
-  const costUsd =
-    (inputTokens * SONNET_INPUT_USD_PER_MTOK +
-      outputTokens * SONNET_OUTPUT_USD_PER_MTOK) /
-    1_000_000;
+  const costUsd = computeCostUsd(inputTokens, outputTokens, modelConfig);
 
   return { evidence, inputTokens, outputTokens, costUsd };
 }

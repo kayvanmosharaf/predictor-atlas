@@ -3,8 +3,14 @@ import { query, stringField } from "@/lib/db";
 import { authenticateRequest, requireAuth } from "@/lib/auth";
 import { getPlaybookForCategory } from "@/lib/forecast/playbooks";
 import { runResearchAgent } from "@/lib/forecast/agents/research";
+import {
+  runModelingAgent,
+  normalizeProbabilities,
+} from "@/lib/forecast/agents/modeling";
+import { runCriticAgent } from "@/lib/forecast/agents/critic";
+import { anthropicErrorResponse } from "@/lib/forecast/anthropic-errors";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // POST /api/runs — kick off a forecast run for a prediction
 export async function POST(request: Request) {
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
       `SELECT * FROM "Outcome" WHERE "predictionId" = :id ORDER BY "createdAt" ASC`,
       [{ name: "id", value: stringField(predictionId) }]
     )
-  ).records as { label: string; probability: number | null }[];
+  ).records as { id: string; label: string; probability: number | null }[];
 
   if (outcomes.length === 0) {
     return NextResponse.json(
@@ -86,12 +92,16 @@ export async function POST(request: Request) {
     ]
   );
 
+  const predictionContext = {
+    title: prediction.title,
+    description: prediction.description,
+    category: prediction.category,
+  };
+
   try {
-    const result = await runResearchAgent(
+    const research = await runResearchAgent(
       {
-        title: prediction.title,
-        description: prediction.description,
-        category: prediction.category,
+        ...predictionContext,
         outcomes: outcomes.map((o) => ({
           label: o.label,
           probability: o.probability ?? 0,
@@ -100,7 +110,7 @@ export async function POST(request: Request) {
       playbook
     );
 
-    for (const ev of result.evidence) {
+    for (const ev of research.evidence) {
       await query(
         `INSERT INTO evidence_items
            (run_id, source_name, content, key_signals, weight, citations)
@@ -123,6 +133,71 @@ export async function POST(request: Request) {
     }
 
     await query(
+      `UPDATE prediction_runs SET status = 'modeling' WHERE id = :id`,
+      [{ name: "id", value: stringField(runId) }]
+    );
+
+    const modeling = await runModelingAgent(
+      {
+        ...predictionContext,
+        outcomes: outcomes.map((o) => ({
+          id: o.id,
+          label: o.label,
+          probability: o.probability ?? 0,
+        })),
+      },
+      research.evidence,
+      playbook
+    );
+
+    const normalized = normalizeProbabilities(modeling.proposedByLabel);
+
+    await query(
+      `INSERT INTO model_outputs (run_id, proposed_probabilities, reasoning)
+       VALUES (:run_id, :proposed::jsonb, :reasoning)`,
+      [
+        { name: "run_id", value: stringField(runId) },
+        { name: "proposed", value: stringField(JSON.stringify(normalized)) },
+        { name: "reasoning", value: stringField(modeling.reasoning) },
+      ]
+    );
+
+    await query(
+      `UPDATE prediction_runs SET status = 'reviewing' WHERE id = :id`,
+      [{ name: "id", value: stringField(runId) }]
+    );
+
+    const critic = await runCriticAgent(
+      {
+        ...predictionContext,
+        outcomes: outcomes.map((o) => ({
+          label: o.label,
+          probability: o.probability ?? 0,
+        })),
+      },
+      research.evidence,
+      normalized,
+      modeling.reasoning,
+      playbook
+    );
+
+    await query(
+      `INSERT INTO critic_reviews (run_id, verdict, notes)
+       VALUES (:run_id, :verdict, :notes)`,
+      [
+        { name: "run_id", value: stringField(runId) },
+        { name: "verdict", value: stringField(critic.verdict) },
+        { name: "notes", value: stringField(critic.notes) },
+      ]
+    );
+
+    const inputTokens =
+      research.inputTokens + modeling.inputTokens + critic.inputTokens;
+    const outputTokens =
+      research.outputTokens + modeling.outputTokens + critic.outputTokens;
+    const costUsd = research.costUsd + modeling.costUsd + critic.costUsd;
+
+    await query(
       `UPDATE prediction_runs
          SET status = 'completed',
              input_tokens = :input_tokens,
@@ -131,9 +206,9 @@ export async function POST(request: Request) {
              completed_at = now()
        WHERE id = :id`,
       [
-        { name: "input_tokens", value: result.inputTokens },
-        { name: "output_tokens", value: result.outputTokens },
-        { name: "cost_usd", value: result.costUsd },
+        { name: "input_tokens", value: inputTokens },
+        { name: "output_tokens", value: outputTokens },
+        { name: "cost_usd", value: costUsd },
         { name: "id", value: stringField(runId) },
       ]
     );
@@ -144,10 +219,12 @@ export async function POST(request: Request) {
         prediction_id: predictionId,
         playbook_key: playbook.key,
         status: "completed",
-        evidence_count: result.evidence.length,
-        input_tokens: result.inputTokens,
-        output_tokens: result.outputTokens,
-        cost_usd: result.costUsd,
+        evidence_count: research.evidence.length,
+        proposed_probabilities: normalized,
+        verdict: critic.verdict,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: costUsd,
       },
       { status: 201 }
     );
@@ -163,6 +240,14 @@ export async function POST(request: Request) {
         { name: "id", value: stringField(runId) },
       ]
     );
+    const anthropicResponse = anthropicErrorResponse(err);
+    if (anthropicResponse) {
+      const body = await anthropicResponse.json();
+      return NextResponse.json(
+        { ...body, run_id: runId },
+        { status: anthropicResponse.status }
+      );
+    }
     return NextResponse.json({ error: message, run_id: runId }, { status: 500 });
   }
 }

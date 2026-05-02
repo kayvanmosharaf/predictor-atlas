@@ -23,6 +23,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<Supabase anon key>
 SUPABASE_SERVICE_ROLE_KEY=<Supabase service role key>
 DATABASE_URL=<Supabase connection pooler URL, transaction mode>
 ANTHROPIC_API_KEY=<for AI analysis feature>
+ANTHROPIC_MODEL=<optional; defaults to claude-sonnet-4-6. Set to claude-haiku-4-5-20251001 in dev for ~3x cheaper iteration>
+ANALYSIS_CACHE_TTL_HOURS=<optional; defaults to 6. /api/analyze returns the cached GameTheoryModel within this window unless body includes force:true>
 ```
 
 ### Daily development
@@ -92,7 +94,7 @@ npm test                     # Run Jest tests
 CSS Modules (`.module.css`) per page/component. Global styles in `app/globals.css`. Dark theme with blue accent (#3b82f6).
 
 ### AI / Anthropic
-- Model: `claude-sonnet-4-6` (used by `/api/analyze` for game-theory analysis with web search)
+- Model selection: `lib/forecast/model.ts` reads `ANTHROPIC_MODEL` env var. Default `claude-sonnet-4-6`; set `claude-haiku-4-5-20251001` in dev for cheaper iteration. Pricing per model lives in the same file.
 - Server-side only — never call the Anthropic API or import `@anthropic-ai/sdk` from client components
 
 ## Constraints

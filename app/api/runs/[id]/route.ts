@@ -45,6 +45,31 @@ export async function GET(
     )
   ).records;
 
+  const modelOutputs = (
+    await query(
+      `SELECT id, proposed_probabilities, reasoning, created_at
+         FROM model_outputs
+        WHERE run_id = :run_id
+        ORDER BY created_at ASC`,
+      [{ name: "run_id", value: stringField(id) }]
+    )
+  ).records;
+
+  const criticReviews = (
+    await query(
+      `SELECT id, verdict, notes, applied, applied_at, created_at
+         FROM critic_reviews
+        WHERE run_id = :run_id
+        ORDER BY created_at ASC`,
+      [{ name: "run_id", value: stringField(id) }]
+    )
+  ).records;
+
   const { prediction_owner: _, ...runWithoutOwner } = run;
-  return NextResponse.json({ ...runWithoutOwner, evidence });
+  return NextResponse.json({
+    ...runWithoutOwner,
+    evidence,
+    model_outputs: modelOutputs,
+    critic_reviews: criticReviews,
+  });
 }
