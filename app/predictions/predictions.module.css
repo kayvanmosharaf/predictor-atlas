@@ -257,7 +257,28 @@
   background: #2563eb;
 }
 
+.detailsBtn {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 6px;
+  color: #a78bfa;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.detailsBtn:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(167, 139, 250, 0.6);
+}
+
 .forecastActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.analysisHeaderActions {
   display: flex;
   gap: 0.5rem;
 }

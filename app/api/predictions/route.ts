@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       ).records;
     }
 
-    // Fetch outcomes for all predictions
+    // Fetch outcomes + analysis-existence flags for all predictions
     const predictionIds = predictions.map((p) => p.id as string);
     if (predictionIds.length > 0) {
       const placeholders = predictionIds.map((_, i) => `:id${i}`).join(", ");
@@ -47,12 +47,17 @@ export async function GET(request: Request) {
         name: `id${i}`,
         value: stringField(id),
       }));
-      const outcomes = (
-        await query(
+
+      const [outcomes, modelIds] = await Promise.all([
+        query(
           `SELECT * FROM "Outcome" WHERE "predictionId" IN (${placeholders}) ORDER BY "createdAt" ASC`,
           params
-        )
-      ).records;
+        ).then((r) => r.records),
+        query(
+          `SELECT "predictionId" FROM "GameTheoryModel" WHERE "predictionId" IN (${placeholders})`,
+          params
+        ).then((r) => r.records),
+      ]);
 
       const outcomeMap = new Map<string, typeof outcomes>();
       for (const o of outcomes) {
@@ -60,9 +65,15 @@ export async function GET(request: Request) {
         if (!outcomeMap.has(pid)) outcomeMap.set(pid, []);
         outcomeMap.get(pid)!.push(o);
       }
+
+      const hasAnalysis = new Set<string>(
+        modelIds.map((m) => m.predictionId as string)
+      );
+
       for (const p of predictions) {
-        (p as Record<string, unknown>).outcomes =
-          outcomeMap.get(p.id as string) ?? [];
+        const pid = p.id as string;
+        (p as Record<string, unknown>).outcomes = outcomeMap.get(pid) ?? [];
+        (p as Record<string, unknown>).hasAnalysis = hasAnalysis.has(pid);
       }
     }
 

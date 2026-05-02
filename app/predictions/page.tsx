@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "@/lib/api-client";
 import AuthModal from "../components/AuthModal";
+import BayesianNetwork from "../components/BayesianNetwork";
 import styles from "./predictions.module.css";
 
 interface Outcome {
@@ -11,6 +12,14 @@ interface Outcome {
   predictionId: string;
   label: string;
   probability: number | null;
+}
+
+interface AnalysisPayload {
+  players: string[] | null;
+  nashEquilibria: string[] | null;
+  dominantStrategies: string[] | null;
+  analysis: string | null;
+  updatedAt: string | null;
 }
 
 interface Prediction {
@@ -21,6 +30,7 @@ interface Prediction {
   status: string;
   resolutionDate: string | null;
   outcomes: Outcome[];
+  hasAnalysis?: boolean;
 }
 
 interface Forecast {
@@ -51,6 +61,9 @@ export default function PredictionsPage() {
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<Record<string, string>>({});
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
+  const [analysisPlayers, setAnalysisPlayers] = useState<Record<string, string[]>>({});
+  const [showDetails, setShowDetails] = useState<Record<string, boolean>>({});
+  const [showNetwork, setShowNetwork] = useState<Record<string, boolean>>({});
   const [activeFilter, setActiveFilter] = useState("All");
 
   // Fetch public predictions
@@ -67,6 +80,46 @@ export default function PredictionsPage() {
     }
     fetchData();
   }, []);
+
+  const populateAnalysisState = (predictionId: string, m: AnalysisPayload) => {
+    if (m.players?.length) {
+      setAnalysisPlayers((prev) => ({ ...prev, [predictionId]: m.players! }));
+    }
+    const parts: string[] = [];
+    if (m.analysis) parts.push(m.analysis);
+    if (m.nashEquilibria?.length) {
+      parts.push(
+        `\nNash Equilibria:\n${m.nashEquilibria.map((e) => `  - ${e}`).join("\n")}`
+      );
+    }
+    if (m.dominantStrategies?.length) {
+      parts.push(
+        `\nDominant Strategies:\n${m.dominantStrategies.map((s) => `  - ${s}`).join("\n")}`
+      );
+    }
+    if (parts.length > 0) {
+      setAnalysisResults((prev) => ({ ...prev, [predictionId]: parts.join("\n") }));
+    }
+  };
+
+  const handleShowDetails = async (predictionId: string) => {
+    if (showDetails[predictionId]) {
+      setShowDetails((prev) => ({ ...prev, [predictionId]: false }));
+      return;
+    }
+    if (!analysisResults[predictionId]) {
+      try {
+        const data = await apiFetch<AnalysisPayload>(
+          `/api/predictions/${predictionId}/analysis`
+        );
+        populateAnalysisState(predictionId, data);
+      } catch (err) {
+        console.error("Failed to load analysis:", err);
+        return;
+      }
+    }
+    setShowDetails((prev) => ({ ...prev, [predictionId]: true }));
+  };
 
   // Fetch user's existing forecasts when authenticated
   const loadUserForecasts = useCallback(async () => {
@@ -158,11 +211,17 @@ export default function PredictionsPage() {
       delete next[predictionId];
       return next;
     });
+    setAnalysisPlayers((prev) => {
+      const next = { ...prev };
+      delete next[predictionId];
+      return next;
+    });
     try {
       const data = await apiFetch<{
         analysis?: string;
         nashEquilibria?: string[];
         dominantStrategies?: string[];
+        players?: string[];
       }>("/api/analyze", {
         method: "POST",
         body: JSON.stringify({ predictionId }),
@@ -173,6 +232,10 @@ export default function PredictionsPage() {
       // Refresh predictions to show updated probabilities
       const refreshed = await apiFetch<Prediction[]>("/api/predictions?scope=public");
       setPredictions(refreshed);
+
+      if (data.players?.length) {
+        setAnalysisPlayers((prev) => ({ ...prev, [predictionId]: data.players! }));
+      }
 
       // Display analysis results
       const parts: string[] = [];
@@ -185,6 +248,7 @@ export default function PredictionsPage() {
       }
       if (parts.length > 0) {
         setAnalysisResults((prev) => ({ ...prev, [predictionId]: parts.join("\n") }));
+        setShowDetails((prev) => ({ ...prev, [predictionId]: true }));
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Analysis failed";
@@ -328,31 +392,59 @@ export default function PredictionsPage() {
                   </button>
                 </div>
               ) : (
-                <button className={styles.forecastBtn} onClick={() => handleMakeForecast(prediction.id)}>
-                  {userForecasts.some((f) => f.predictionId === prediction.id) ? "Update Forecast" : "Make Forecast"}
-                </button>
+                <div className={styles.forecastActions}>
+                  <button className={styles.forecastBtn} onClick={() => handleMakeForecast(prediction.id)}>
+                    {userForecasts.some((f) => f.predictionId === prediction.id) ? "Update Forecast" : "Make Forecast"}
+                  </button>
+                  {prediction.hasAnalysis && (
+                    <button
+                      className={styles.detailsBtn}
+                      onClick={() => handleShowDetails(prediction.id)}
+                    >
+                      {showDetails[prediction.id] ? "Hide Details" : "Show Details"}
+                    </button>
+                  )}
+                </div>
               )}
               {analysisStatus[prediction.id] && (
                 <span className={styles.analysisStatus}>{analysisStatus[prediction.id]}</span>
               )}
             </div>
-            {analysisResults[prediction.id] && (
+            {showDetails[prediction.id] && analysisResults[prediction.id] && (
               <div className={styles.analysisOutput}>
                 <div className={styles.analysisOutputHeader}>
                   <span>AI Analysis</span>
-                  <button
-                    className={styles.analysisCloseBtn}
-                    onClick={() =>
-                      setAnalysisResults((prev) => {
-                        const next = { ...prev };
-                        delete next[prediction.id];
-                        return next;
-                      })
-                    }
-                  >
-                    Dismiss
-                  </button>
+                  <div className={styles.analysisHeaderActions}>
+                    {analysisPlayers[prediction.id]?.length ? (
+                      <button
+                        className={styles.analysisCloseBtn}
+                        onClick={() =>
+                          setShowNetwork((prev) => ({
+                            ...prev,
+                            [prediction.id]: !prev[prediction.id],
+                          }))
+                        }
+                      >
+                        {showNetwork[prediction.id] ? "Hide Strategy Map" : "Show Strategy Map"}
+                      </button>
+                    ) : null}
+                    <button
+                      className={styles.analysisCloseBtn}
+                      onClick={() =>
+                        setShowDetails((prev) => ({ ...prev, [prediction.id]: false }))
+                      }
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
+                {showNetwork[prediction.id] && analysisPlayers[prediction.id]?.length ? (
+                  <BayesianNetwork
+                    players={analysisPlayers[prediction.id]}
+                    outcomes={prediction.outcomes}
+                    categoryColor={categoryColors[prediction.category ?? "OTHER"]}
+                  />
+                ) : null}
                 <pre className={styles.analysisText}>{analysisResults[prediction.id]}</pre>
               </div>
             )}
