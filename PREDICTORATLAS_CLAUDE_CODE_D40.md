@@ -2,6 +2,13 @@
 ## Claude Code Complete Context & Startup Document
 **Last Updated:** April 4, 2026 | Day 40 | Week 6 Opening — Critical Deadline Edition
 
+> **Stack note (2026-04):** This project was originally planned on AWS Amplify Gen 2
+> (Cognito + AppSync + DynamoDB + Aurora Serverless v2 via RDS Data API). It has since
+> been migrated to **Supabase (Auth + Postgres) on Vercel**. All implementation
+> sections below describe the current Supabase architecture. The analytical paste
+> block, scenario definitions, and current-state summary are unchanged — they describe
+> the model itself, not the platform.
+
 ---
 
 ## PASTE THIS BLOCK INTO A NEW CHAT TO RESUME THE MODEL
@@ -276,62 +283,49 @@ COMMANDS: "Update" | "scenarios" | "scenario pdf" | "forecast pdf" | "Regenerate
 ## 1. PROJECT OVERVIEW
 
 **Site:** predictoratlas.com
-**Stack:** Next.js 14 (App Router) + AWS Amplify Gen 2 + Cognito + AppSync + DynamoDB + Aurora Serverless v2 (PostgreSQL via RDS Data API) + Anthropic API (claude-sonnet-4-6)
-**Build plan:** 5 Claude Code sessions (see Section 6)
+**Stack:** Next.js 16 (App Router) + Supabase (Auth + PostgreSQL) + Anthropic API (claude-sonnet-4-6) + Vercel
+**Build plan:** 5 Claude Code sessions (see Section 6) — these describe the *Iran War Model feature build* on top of the already-shipped generic prediction platform.
 
 PredictorAtlas applies game theory and Nash equilibrium to forecast real-world events.
-The Iran War Intelligence Model is the flagship live feature — a dual-framework Bayesian
-intelligence model with 20-source automated sweep and analyst review queue.
+The generic prediction/forecasting platform is shipped. The **Iran War Intelligence
+Model** is the planned flagship live feature — a dual-framework Bayesian intelligence
+model with 20-source automated sweep and analyst review queue. It runs the sweep via
+Anthropic API and stores live data in Supabase Postgres alongside the existing
+prediction tables.
 
 ---
 
-## 2. COMPLETE CLAUDE.md FOR PREDICTORATLAS
+## 2. PROJECT CLAUDE.md (current — see `/CLAUDE.md` in repo root for the live version)
+
+The repo root already has a `CLAUDE.md` describing the shipped platform (auth,
+data layer, API routes, file map). The Iran War Model add-on adds the following
+on top of that base:
 
 ```markdown
-# CLAUDE.md
+## Iran War Intelligence Model — addendum to CLAUDE.md
 
-## Project Overview
-
-PredictorAtlas — a game theory prediction platform built with Next.js 14 (App Router)
-and AWS Amplify Gen 2. Users browse predictions on global events and submit forecasts.
-Game theory models (Nash equilibrium, payoff matrices) power the analysis.
-
-The first feature is the **Iran War Intelligence Model** — a live Bayesian
-dual-framework model tracking Operation Epic Fury (started Feb 28, 2026).
-It runs a 20-source sweep via Anthropic API and stores live data in Aurora Serverless v2 (PostgreSQL) via AppSync + RDS Data API.
-
-## Commands
-
-npm run dev          # Start local dev server
-npm run build        # Build for production
-npm start            # Start production server
-npm run lint         # Run ESLint
-npx ampx sandbox     # Start Amplify backend sandbox
-
-## Architecture
-
-### Dual Backend (CRITICAL — never mix these)
-- AWS Amplify/DynamoDB (AppSync)  — generic predictions, user forecasts, auth
-- Aurora Serverless v2 (PostgreSQL) — Iran War Intelligence Model live data ONLY
-  * Accessed via RDS Data API through AppSync SQL resolvers
-  * Defined in amplify/data/resource.ts as an additional data source
-  * No direct DB connections from app code — all queries go through AppSync/GraphQL
+### Architecture
+- All Iran War Model data lives in **Supabase Postgres**, alongside the existing
+  generic prediction tables (Prediction / Outcome / Forecast / GameTheoryModel).
+- Queries use the existing `lib/db.ts` (`pg` driver via Supabase connection
+  pooler in transaction mode) — same pattern as the rest of the app.
+- Auth: same Supabase Auth as the rest of the app. The analyst-review endpoints
+  (`/api/intel/sweep`, `/api/model/update`) require admin role
+  (`app_metadata.role = "admin"`) via `requireAdmin()` from `lib/auth.ts`.
+- Anthropic calls run server-side only, in `/api/intel/sweep`.
 
 ### Server/Client Split
-- app/page.tsx                  — server component
-- app/about/page.tsx            — server component
-- app/predictions/page.tsx      — client component
-- app/dashboard/page.tsx        — client component (auth-gated)
 - app/iran-model/page.tsx       — client component (live data)
+- All `/api/intel/*` and `/api/model/*` routes — server only
 
-### API Routes (all server-side)
+### API Routes (Iran War Model)
 - app/api/model/route.ts            — GET current dual-model probabilities
-- app/api/model/update/route.ts     — POST analyst-approved probability update
-- app/api/intel/sweep/route.ts      — POST trigger 20-source Anthropic sweep
+- app/api/model/update/route.ts     — POST analyst-approved probability update (admin)
+- app/api/intel/sweep/route.ts      — POST trigger 20-source Anthropic sweep (admin)
 - app/api/market/route.ts           — GET live gas/brent/sp500 data
 - app/api/forecast/route.ts         — GET D+1/D+3/D+7 horizon forecasts
 
-### File Structure
+### Iran War Model file additions
 app/
   api/
     model/route.ts
@@ -339,11 +333,9 @@ app/
     intel/sweep/route.ts
     market/route.ts
     forecast/route.ts
-  predictions/page.tsx
-  dashboard/page.tsx
   iran-model/page.tsx
 lib/
-  anthropic.ts              # singleton — server-side only
+  anthropic.ts              # Anthropic singleton — server-side only
   bayesian/
     update.ts               # probability update logic
     scenarios.ts            # S1-S8 definitions with all ranges
@@ -352,63 +344,51 @@ lib/
     aaa.ts                  # AAA gas price fetcher
     fred.ts                 # S&P 500 FRED API fetcher
     brent.ts                # Brent crude fetcher
-components/
-  iran-model/
-    DualModelTable.tsx      # S1-S8 with A/B probs + Brent + Gas + S&P
-    NarrativeTracker.tsx    # N1-N5 states
-    EarlyWarningPanel.tsx   # 9 triggers with status
-    IntelFeed.tsx           # Last 5 source updates
-    ForecastHorizons.tsx    # D+1/D+3/D+7 tables
-    ExternalActorLayer.tsx  # China/Pakistan/EU/UK/NATO status
-    MarketStrip.tsx         # Live Brent/Gas/S&P bar
-    ConsumerImpact.tsx      # Monthly car fill cost per scenario
-amplify/
-  auth/resource.ts
-  data/resource.ts          # DynamoDB models + Aurora Serverless v2 SQL data source
-  backend.ts
+app/components/iran-model/
+  DualModelTable.tsx        # S1-S8 with A/B probs + Brent + Gas + S&P
+  NarrativeTracker.tsx      # N1-N5 states
+  EarlyWarningPanel.tsx     # 9 triggers with status
+  IntelFeed.tsx             # Last 5 source updates
+  ForecastHorizons.tsx      # D+1/D+3/D+7 tables
+  ExternalActorLayer.tsx    # China/Pakistan/EU/UK/NATO status
+  MarketStrip.tsx           # Live Brent/Gas/S&P bar
+  ConsumerImpact.tsx        # Monthly car fill cost per scenario
 
-## Data Models — Amplify/DynamoDB (AppSync)
-- Prediction    — event to forecast (title, category, status, resolution date)
-- Outcome       — possible outcomes with Nash scores and probabilities
-- Forecast      — user prediction on outcome (owner-authorized)
-- GameTheoryModel — players, payoff matrix, Nash equilibria
+### Data Models — generic platform (already shipped)
+- Prediction       — event to forecast (title, category, status, resolution date, owner)
+- Outcome          — possible outcomes with probabilities (cascade-deletes with prediction)
+- Forecast         — a user's confidence on an outcome (unique per owner+outcome, upsert)
+- GameTheoryModel  — players, payoff matrix, Nash equilibria (one per prediction)
 
-## Data Models — Aurora Serverless v2 (Iran War Model, via AppSync SQL resolvers)
-All Iran War Model data lives in Aurora Serverless v2 (PostgreSQL).
-Queries are executed via RDS Data API through AppSync SQL resolvers — no direct
-DB connections from application code.
-- model_states           — S1-S8 (model_a_prob, model_b_prob, updated_at)
-- narrative_states        — N1-N5 Trump narrative tracker
-- intelligence_updates   — sweep results (source, weight, reasoning, impact)
-- early_warning_triggers — 9 triggers (status: triggered/partial/clear, evidence)
-- market_data            — gas_aaa, brent, sp500, diesel, recorded_at
-- scenario_ranges        — per-scenario Brent/Gas/SP500/recession ranges
-- forecast_horizons      — D1/D3/D7 probabilities per scenario
-- external_actors        — L8 layer (China/Pakistan/EU/UK/NATO status)
-- source_sweep_log       — 20-source sweep history with timestamps
-- winchester_status      — PAC-3/Tomahawk/GBU57 depletion levels
+### Data Models — Iran War Model (Postgres tables, see Section 3 schema)
+- model_states              — S1-S8 (model_a_prob, model_b_prob, ranges, updated_at)
+- narrative_states          — N1-N5 Trump narrative tracker
+- intelligence_updates      — sweep results (source, weight, reasoning, impact)
+- early_warning_triggers    — 9 triggers (status: triggered/partial/clear, evidence)
+- market_data               — gas_aaa, brent, sp500, diesel, recorded_at
+- forecast_horizons         — D1/D3/D7 probabilities per scenario
+- external_actors           — L8 layer (China/Pakistan/EU/UK/NATO status)
+- source_sweep_log          — 20-source sweep history with timestamps
+- winchester_status         — PAC-3/Tomahawk/GBU57 depletion levels
+- consumer_impact           — per-scenario monthly car-fill delta
 
-## Environment Variables
-ANTHROPIC_API_KEY=            # Server-side only. NEVER expose to client.
+### Environment Variables (additions)
+ANTHROPIC_API_KEY=            # already set for /api/analyze; reused by Iran War sweep
 FRED_API_KEY=                 # S&P 500 (fred.stlouisfed.org)
 AAA_GAS_URL=https://gasprices.aaa.com/
-NEXT_PUBLIC_APP_URL=
-# Aurora Serverless v2 is managed by Amplify — no manual connection strings needed.
-# Amplify Gen 2 provisions the Aurora cluster and wires it to AppSync automatically.
-# The RDS Data API credentials are handled via IAM roles defined in amplify/backend.ts.
+# Existing Supabase vars (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+# SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL) are reused — no new DB connection.
 
-## Never
+### Never
 - Never call Anthropic API from client components
-- Never use DynamoDB for Iran War model data — use Aurora Serverless v2 only
-- Never connect directly to Aurora from app code — always go through AppSync SQL resolvers / RDS Data API
-- Never import Amplify UI in server components
+- Never bypass `requireAdmin()` on `/api/intel/*` or `/api/model/update`
 - Never use `any` in TypeScript
 - Never hardcode API keys
 - Never store probabilities as percentages in DB — use floats (0.16 not 16)
 - Never store S&P as percentage change — use actual index level (6575 not -3.9)
 - Never store gas price as percentage change — use $/gallon (4.081)
 
-## Key Constants (Iran War Model)
+### Key Constants (Iran War Model)
 - AI Model: claude-sonnet-4-6
 - Scenarios: S1, S2, S3, S4, S5, S6, S8 (no S7)
 - Narrative states: N1-N5
@@ -422,7 +402,10 @@ NEXT_PUBLIC_APP_URL=
 
 ---
 
-## 3. Aurora Serverless v2 Schema (PostgreSQL via RDS Data API)
+## 3. Supabase Postgres Schema (Iran War Model tables)
+
+Run these against Supabase via the SQL Editor (or check into a migration file
+under `scripts/` and apply via `psql $DATABASE_URL`).
 
 ```sql
 -- Core probability table
@@ -552,6 +535,12 @@ CREATE TABLE source_sweep_log (
 );
 ```
 
+> **RLS note:** these tables are all read-public, write-admin. Either keep them
+> outside the Supabase Auth RLS surface (server-only access via the existing
+> `pg` pool with the service role) or enable RLS with policies allowing
+> `auth.jwt() ->> 'role' = 'admin'` on writes. The existing app uses the former
+> pattern via `lib/db.ts` — stick with it.
+
 ---
 
 ## 4. SCENARIO DEFINITIONS (Full — with Gas and S&P)
@@ -641,7 +630,7 @@ export const PRE_WAR = {
 
 ```typescript
 // app/api/market/route.ts
-// Fetches AAA gas, FRED S&P, live Brent
+// Fetches AAA gas, FRED S&P, live Brent. No auth required.
 GET /api/market
 Response: {
   brent: number,           // $/bbl
@@ -659,7 +648,7 @@ Response: {
   recorded_at: string
 }
 
-// app/api/model/route.ts
+// app/api/model/route.ts — no auth required
 GET /api/model
 Response: {
   war_day: number,
@@ -680,7 +669,7 @@ Response: {
   updated_at: string
 }
 
-// app/api/forecast/route.ts
+// app/api/forecast/route.ts — no auth required
 GET /api/forecast
 Response: {
   horizons: {
@@ -697,7 +686,7 @@ Response: {
   }
 }
 
-// app/api/intel/sweep/route.ts
+// app/api/intel/sweep/route.ts — admin only (requireAdmin())
 POST /api/intel/sweep
 Body: { force?: boolean }
 Response: {
@@ -708,42 +697,46 @@ Response: {
   top_signals: Array<{ source: string, impact: string }>,
   requires_analyst_review: boolean
 }
+
+// app/api/model/update/route.ts — admin only
+POST /api/model/update
+Body: { sweep_id: string, approved_changes: Record<string, { model_a: number, model_b: number }> }
+Response: { success: true, updated_states: number }
 ```
 
 ---
 
-## 6. FIVE-SESSION BUILD PLAN (Claude Code)
+## 6. FIVE-SESSION BUILD PLAN (Claude Code) — Iran War Model on top of shipped platform
 
-### Session 1 — Database + Seed + Market Fetchers
+### Session 1 — Schema + Seed + Market Fetchers
 ```
-Goal: Provision Aurora Serverless v2, seed Day 40 data, and build market fetchers.
-Read CLAUDE.md first. Then:
-1. Add Aurora Serverless v2 cluster to amplify/backend.ts (using @aws-amplify/backend)
-2. Define SQL schema in amplify/data/ for all Iran War Model tables
-3. Configure AppSync SQL resolvers for CRUD operations via RDS Data API
-4. Create SQL migration with full schema (from this doc Section 3)
-5. Seed scenarios table with all 7 scenarios + current Day 40 probabilities
-6. Seed market_data with live values
-7. Seed early_warning_triggers with all 9 (triggers 6+9 as TRIGGERED)
-8. Seed winchester_status
-9. Seed external_actors (L8 layer)
-10. lib/market/aaa.ts — scrape/parse gasprices.aaa.com
-11. lib/market/fred.ts — FRED API series SP500
-12. lib/market/brent.ts — Brent crude live price
-13. app/api/market/route.ts — combine and return
-14. Schedule daily cron to update market_data table
-Test: Query model_states via AppSync returns 7 rows + GET /api/market returns live values
+Goal: Add Iran War Model tables to Supabase, seed Day 40 data, build market fetchers.
+Read /CLAUDE.md first (covers existing Supabase + lib/db.ts patterns). Then:
+1. Create scripts/migrations/iran-war-model.sql with full schema (Section 3)
+2. Apply via psql $DATABASE_URL or Supabase SQL editor
+3. Seed model_states with 7 scenarios + Day 40 probabilities
+4. Seed market_data with current values
+5. Seed early_warning_triggers (9 rows; triggers 6+9 = TRIGGERED)
+6. Seed winchester_status, external_actors, consumer_impact
+7. lib/market/aaa.ts — scrape gasprices.aaa.com
+8. lib/market/fred.ts — FRED API series SP500
+9. lib/market/brent.ts — Brent crude live price
+10. app/api/market/route.ts — combine and return (uses existing lib/db.ts)
+11. Schedule daily refresh — Vercel Cron (vercel.json) hitting an admin endpoint
+Test: SELECT * FROM model_states returns 7 rows + GET /api/market returns live values
 ```
 
 ### Session 2 — Model API + AI Orchestrator
 ```
 Goal: Build the probability update system.
-1. app/api/model/route.ts — GET current state
+1. app/api/model/route.ts — GET current state via lib/db.ts
 2. lib/bayesian/update.ts — probability update logic
 3. lib/anthropic.ts — Anthropic client singleton (claude-sonnet-4-6)
+   * Reuse existing ANTHROPIC_API_KEY env var (already used by /api/analyze)
 4. app/api/intel/sweep/route.ts — 20-source sweep via Anthropic API
-5. Analyst review queue (accept/reject proposed changes)
-Test: POST /api/intel/sweep returns proposed probability changes
+   * Gate with requireAdmin() from lib/auth.ts
+5. Analyst review queue (accept/reject proposed changes via /api/model/update)
+Test: POST /api/intel/sweep (as admin) returns proposed probability changes
 ```
 
 ### Session 3 — Forecast Horizons
@@ -765,6 +758,7 @@ Components (in order):
 3. NarrativeTracker — N1-N5 current state indicator
 4. ForecastHorizons — D+1/D+3/D+7 tables side by side
 5. ConsumerImpact — monthly car fill cost per scenario table
+Use existing lib/api-client.ts (apiFetch) for client-side fetches.
 Test: iran-model page renders with live data from Sessions 1-3
 ```
 
@@ -806,10 +800,10 @@ Test: Full iran-model page renders all 9 components with live data
 | iran_forecast_enhanced.pdf | Forecast with AAA gas + S&P levels | Day 36 |
 | iran_forecast_scenarios.pdf | 3-horizon forecast | Day 36 |
 | iran_model_scenarios_day35.pdf | Full scenario PDF pre-speech | Day 35 |
-| PREDICTORATLAS_CLAUDE_CODE_D40.md | THIS FILE — Day 40 | Day 40 |
-| PREDICTORATLAS_CLAUDE_CODE_D36.md | Previous version | Day 36 |
+| PREDICTORATLAS_CLAUDE_CODE_D40.md | THIS FILE — Day 40 (Supabase) | Day 40 |
+| PREDICTORATLAS_CLAUDE_CODE_D36.md | Previous version (AWS Amplify plan) | Day 36 |
 
 ---
 
 *Iran War Intelligence Model v3+ | PredictorAtlas.com | Day 40 | April 4, 2026*
-*Model A: Pape/Nasr/Jiang | Model B: Pahlavi/IranIntl/Fox | Gas: AAA | S&P: FRED*
+*Stack: Next.js 16 + Supabase + Vercel | Model A: Pape/Nasr/Jiang | Model B: Pahlavi/IranIntl/Fox | Gas: AAA | S&P: FRED*
