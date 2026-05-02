@@ -91,6 +91,15 @@ npm test                     # Run Jest tests
 ### Styling
 CSS Modules (`.module.css`) per page/component. Global styles in `app/globals.css`. Dark theme with blue accent (#3b82f6).
 
+### AI / Anthropic
+- Model: `claude-sonnet-4-6` (used by `/api/analyze` for game-theory analysis with web search)
+- Server-side only — never call the Anthropic API or import `@anthropic-ai/sdk` from client components
+
+## Constraints
+- Never use `any` in TypeScript
+- Never hardcode API keys — read from `process.env`
+- Never call the Anthropic API from client components
+
 ### Key files
 | File | Purpose |
 |------|---------|

@@ -379,11 +379,8 @@ AAA_GAS_URL=https://gasprices.aaa.com/
 # Existing Supabase vars (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 # SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL) are reused — no new DB connection.
 
-### Never
-- Never call Anthropic API from client components
+### Never (Iran War Model–specific — see root CLAUDE.md for general rules)
 - Never bypass `requireAdmin()` on `/api/intel/*` or `/api/model/update`
-- Never use `any` in TypeScript
-- Never hardcode API keys
 - Never store probabilities as percentages in DB — use floats (0.16 not 16)
 - Never store S&P as percentage change — use actual index level (6575 not -3.9)
 - Never store gas price as percentage change — use $/gallon (4.081)
