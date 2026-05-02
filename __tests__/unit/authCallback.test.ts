@@ -47,7 +47,7 @@ describe("/auth/callback GET", () => {
     expect(res.headers.get("location")).toBe("https://example.com/");
   });
 
-  it("redirects to /?auth_error=1 when the code exchange fails", async () => {
+  it("redirects to /?auth_error=1 with the failure reason when code exchange fails", async () => {
     mockExchangeCodeForSession.mockResolvedValue({
       error: { message: "bad code" },
     });
@@ -57,15 +57,15 @@ describe("/auth/callback GET", () => {
       )
     );
     expect(res.headers.get("location")).toBe(
-      "https://example.com/?auth_error=1"
+      "https://example.com/?auth_error=1&reason=bad%20code"
     );
   });
 
-  it("redirects to /?auth_error=1 when the code param is missing", async () => {
+  it("redirects to /?auth_error=1&reason=missing_code when the code param is missing", async () => {
     const res = await GET(makeRequest("https://example.com/auth/callback"));
     expect(mockExchangeCodeForSession).not.toHaveBeenCalled();
     expect(res.headers.get("location")).toBe(
-      "https://example.com/?auth_error=1"
+      "https://example.com/?auth_error=1&reason=missing_code"
     );
   });
 });

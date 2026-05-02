@@ -12,7 +12,14 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+    console.error("[auth/callback] exchangeCodeForSession failed:", {
+      message: error.message,
+      status: error.status,
+      name: error.name,
+    });
+    const reason = encodeURIComponent(error.message);
+    return NextResponse.redirect(`${origin}/?auth_error=1&reason=${reason}`);
   }
 
-  return NextResponse.redirect(`${origin}/?auth_error=1`);
+  return NextResponse.redirect(`${origin}/?auth_error=1&reason=missing_code`);
 }
